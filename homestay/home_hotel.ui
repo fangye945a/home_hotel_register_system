@@ -167,7 +167,7 @@ font: 25 30pt &quot;Microsoft YaHei UI Light&quot;;</string>
      <item row="0" column="1">
       <widget class="QStackedWidget" name="stackedWidget">
        <property name="currentIndex">
-        <number>0</number>
+        <number>2</number>
        </property>
        <widget class="QWidget" name="page">
         <layout class="QGridLayout" name="gridLayout_2">
@@ -1677,6 +1677,47 @@ font: 25 24pt &quot;Microsoft YaHei UI Light&quot;;</string>
               </item>
               <item>
                <spacer name="horizontalSpacer_27">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="horizontalLayout_20">
+              <item>
+               <spacer name="horizontalSpacer_37">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QLabel" name="success_msg_2">
+                <property name="styleSheet">
+                 <string notr="true">color: rgb(255, 0, 0);
+font: 75 12pt &quot;Microsoft YaHei UI Light&quot;;</string>
+                </property>
+                <property name="text">
+                 <string>一间房间一天仅可获取三次钥匙</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="horizontalSpacer_38">
                 <property name="orientation">
                  <enum>Qt::Horizontal</enum>
                 </property>
