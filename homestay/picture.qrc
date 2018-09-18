@@ -30,5 +30,6 @@
         <file>pictures/获取秘钥完成.png</file>
         <file>pictures/密钥获取成功.png</file>
         <file>pictures/增加人员.png</file>
+        <file>pictures/获取失败.png</file>
     </qresource>
 </RCC>
