@@ -13,6 +13,17 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonParseError>
+#include <QCloseEvent>
+
+#include "detect_card_pthread.h"
+
+enum {
+      FIRST_PAGE=0, //首页面
+      CARD_DETECT,  //身份证检测
+      FACE_COMPARE, //人证对比
+      PHONENUMBER_SIGN, //登记号码
+      ASK_ERROR_PAGE    //请求返回错误提示页面
+     };
 
 namespace Ui {
 class home_hotel;
@@ -28,6 +39,7 @@ public:
     bool eventFilter(QObject *obj, QEvent *event);
     void home_hotel_init();         //参数初始化
     void signal_slots_connect();    //连接信号与槽
+    void closeEvent(QCloseEvent *event);
 public slots:
     void update_time();
 
@@ -35,6 +47,7 @@ public slots:
 
     void update_weather(QNetworkReply *reply); //更新天气
 
+    void detect_card_finish();  //身份证检测完成
 private slots:
     void on_check_in_clicked();
 
@@ -66,6 +79,10 @@ private slots:
 
     void on_num_9_clicked();
 
+    void on_get_the_key_clicked();
+
+    void on_check_out_clicked();
+
 private:
     Ui::home_hotel *ui;
     int focus_flag;   //-1 无焦点 0 电话号码  1 验证码
@@ -76,8 +93,8 @@ private:
 
     QNetworkAccessManager *face_compare_manager;    //人脸比较
     QNetworkAccessManager *weather_manager;         //天气请求
-    QNetworkAccessManager *upload_manager;          //信息上传请求
 
+    detect_card_pthread *pthread_card;
 };
 
 #endif // HOME_HOTEL_H

@@ -14,9 +14,11 @@ TEMPLATE = app
 
 
 SOURCES += main.cpp\
-        home_hotel.cpp
+        home_hotel.cpp \
+    detect_card_pthread.cpp
 
-HEADERS  += home_hotel.h
+HEADERS  += home_hotel.h \
+    detect_card_pthread.h
 
 FORMS    += home_hotel.ui
 

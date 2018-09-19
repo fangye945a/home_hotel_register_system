@@ -1,6 +1,8 @@
 #include "home_hotel.h"
 #include "ui_home_hotel.h"
 
+extern CARD_INFO card_info; //身份证信息
+
 home_hotel::home_hotel(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::home_hotel)
@@ -89,11 +91,23 @@ void home_hotel::signal_slots_connect()
     weather_timer = new QTimer(this);      //天气更新计时
     connect(weather_timer,SIGNAL(timeout()),this,SLOT(update_weather()));
 
-    weather_manager = new QNetworkAccessManager(this);
+    weather_manager = new QNetworkAccessManager(this); //天气数据请求
     connect(weather_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(update_weather(QNetworkReply*)));
+
+    pthread_card = new detect_card_pthread();
+    connect(pthread_card,SIGNAL(detected()),this, SLOT(detect_card_finish()));
 }
 
-void home_hotel::update_time()
+void home_hotel::closeEvent(QCloseEvent *event)  //关闭前退出线程
+{
+    if(pthread_card->isRunning())    //退出前先关闭线程
+    {
+       pthread_card->stop();
+       pthread_card->wait();
+    }
+}
+
+void home_hotel::update_time() //更新时间
 {
     QString year_month_day= QDateTime::currentDateTime().toString("yyyy-MM-dd"); //年月日
     QString hour_minutes= QDateTime::currentDateTime().toString("HH:mm");   //时 分
@@ -112,7 +126,8 @@ void home_hotel::weather_inquiry()  //获取天气
     quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
     weather_manager->get(quest);
 }
-void home_hotel::update_weather(QNetworkReply* reply)
+
+void home_hotel::update_weather(QNetworkReply* reply) //更新显示天气
 {
     static QString wind_state;     //风向
     static QString Temperature;    //气温
@@ -185,12 +200,44 @@ void home_hotel::update_weather(QNetworkReply* reply)
     reply->deleteLater();
 }
 
-void home_hotel::on_check_in_clicked()
+void home_hotel::detect_card_finish() //身份证检测完成
 {
-    ui->stackedWidget->setCurrentIndex(1);
+#if 0
+    QString tmp = QString::fromLocal8Bit(card_info.name);
+    qDebug()<<"姓名:"<<tmp;
+    tmp = QString::fromLocal8Bit(card_info.sex);
+    qDebug()<<"性别:"<<tmp;
+    tmp = QString::fromLocal8Bit(card_info.nation);
+    qDebug()<<"民族:"<<tmp;
+    tmp = QString::fromLocal8Bit(card_info.birth);
+    qDebug()<<"出生日期:"<<tmp;
+    tmp = QString::fromLocal8Bit(card_info.address);
+    qDebug()<<"住址:"<<tmp;
+    tmp = QString::fromLocal8Bit(card_info.card_id);
+    qDebug()<<"身份证号码："<<tmp;
+    tmp = QString::fromLocal8Bit(card_info.registry);
+    qDebug()<<"签发机关："<<tmp;
+#endif
+
 }
 
-void home_hotel::on_exit_clicked()
+void home_hotel::on_check_in_clicked() //入住
+{
+    ui->stackedWidget->setCurrentIndex(CARD_DETECT);
+    pthread_card->start();
+}
+
+void home_hotel::on_get_the_key_clicked() //取钥匙
+{
+
+}
+
+void home_hotel::on_check_out_clicked() //退房
+{
+
+}
+
+void home_hotel::on_exit_clicked()  //退出按钮
 {
     int i = ui->stackedWidget->currentIndex();
     int max = ui->stackedWidget->count();
@@ -202,7 +249,7 @@ void home_hotel::on_exit_clicked()
     ui->stackedWidget->setCurrentIndex(i);
 }
 
-void home_hotel::set_lineEdit_text(int opt_code)
+void home_hotel::set_lineEdit_text(int opt_code) //显示输入字符
 {
     qDebug()<<"set_lineEdit_text"<<" focus_flag="<<focus_flag<<" opt_code="<<opt_code;
     if(focus_flag == 0)
@@ -319,62 +366,63 @@ void home_hotel::set_lineEdit_text(int opt_code)
     }
 }
 
-void home_hotel::on_num_clean_clicked()
+void home_hotel::on_num_clean_clicked() //按键清空
 {
     set_lineEdit_text(-2);
 }
 
-void home_hotel::on_num_del_clicked()
+void home_hotel::on_num_del_clicked()   //按键删除
 {
     set_lineEdit_text(-1);
 }
 
-void home_hotel::on_num_0_clicked()
+void home_hotel::on_num_0_clicked()     //按键0
 {
     set_lineEdit_text(0);
 }
 
-void home_hotel::on_num_1_clicked()
+void home_hotel::on_num_1_clicked()     //按键1
 {
     set_lineEdit_text(1);
 }
 
-void home_hotel::on_num_2_clicked()
+void home_hotel::on_num_2_clicked()     //按键2
 {
     set_lineEdit_text(2);
 }
 
-void home_hotel::on_num_3_clicked()
+void home_hotel::on_num_3_clicked()     //按键3
 {
     set_lineEdit_text(3);
 }
 
-void home_hotel::on_num_4_clicked()
+void home_hotel::on_num_4_clicked()     //按键4
 {
     set_lineEdit_text(4);
 }
 
-void home_hotel::on_num_5_clicked()
+void home_hotel::on_num_5_clicked()     //按键5
 {
     set_lineEdit_text(5);
 }
 
-void home_hotel::on_num_6_clicked()
+void home_hotel::on_num_6_clicked()     //按键6
 {
     set_lineEdit_text(6);
 }
 
-void home_hotel::on_num_7_clicked()
+void home_hotel::on_num_7_clicked()     //按键7
 {
     set_lineEdit_text(7);
 }
 
-void home_hotel::on_num_8_clicked()
+void home_hotel::on_num_8_clicked()     //按键8
 {
     set_lineEdit_text(8);
 }
 
-void home_hotel::on_num_9_clicked()
+void home_hotel::on_num_9_clicked()     //按键9
 {
     set_lineEdit_text(9);
 }
+
