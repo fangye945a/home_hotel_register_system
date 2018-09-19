@@ -10,6 +10,7 @@ detect_card_pthread::detect_card_pthread()
 
 void detect_card_pthread::run()  //线程函数
 {
+    flagRunning = true;
     qDebug()<<"身份证检测线程启动!!";
     mutex.lock();
     while(flagRunning)

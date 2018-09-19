@@ -1,6 +1,9 @@
 #include "home_hotel.h"
 #include "ui_home_hotel.h"
 
+QList<cv::Mat> g_video_frame; //全局视频录制画面
+QString hotel_id;     //酒店ID
+
 extern CARD_INFO card_info; //身份证信息
 
 home_hotel::home_hotel(QWidget *parent) :
@@ -76,7 +79,22 @@ bool home_hotel::eventFilter(QObject *obj, QEvent *event)
 void home_hotel::home_hotel_init()
 {
     focus_flag = -1;
-    local_city = "昆明";
+    local_city = "宁波";
+    api_key = API_Key;
+    secret_key = Secret_Key;
+    confidence_threshold = 70;
+    ui->exit->hide();
+
+    frame_data = new cv::Mat;
+    camera = new cv::VideoCapture;
+    ccf = new cv::CascadeClassifier;
+    if(!ccf->load("../homestay/haarcascade_frontalface_default_2.4.9.xml")) //导入opencv自带检测的文件
+       qDebug()<<"无法加载xml文件";
+    else
+       qDebug()<<"加载xml文件成功";
+
+    q_image_data = new QImage;
+
     time_timer->start(60*1000); //每分钟更新一次时间
     weather_timer->start(60*60*1000); //每小时更新一次天气
     weather_inquiry();  //获取天气
@@ -91,11 +109,18 @@ void home_hotel::signal_slots_connect()
     weather_timer = new QTimer(this);      //天气更新计时
     connect(weather_timer,SIGNAL(timeout()),this,SLOT(update_weather()));
 
+    frame_timer = new QTimer(this);      //天气更新计时
+    connect(frame_timer,SIGNAL(timeout()),this,SLOT(get_frame()));
+
     weather_manager = new QNetworkAccessManager(this); //天气数据请求
     connect(weather_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(update_weather(QNetworkReply*)));
 
     pthread_card = new detect_card_pthread();
     connect(pthread_card,SIGNAL(detected()),this, SLOT(detect_card_finish()));
+
+    face_compare_manager = new QNetworkAccessManager(this); //人脸比对请求
+    connect(face_compare_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(face_compare_result(QNetworkReply*)));
+
 }
 
 void home_hotel::closeEvent(QCloseEvent *event)  //关闭前退出线程
@@ -105,6 +130,70 @@ void home_hotel::closeEvent(QCloseEvent *event)  //关闭前退出线程
        pthread_card->stop();
        pthread_card->wait();
     }
+}
+
+QImage home_hotel::ScaleImage2Label(QImage qImage, QLabel* qLabel) // 使图片能适应Lable部件
+{
+    QImage qScaledImage;
+    QSize qImageSize = qImage.size();
+    QSize qLabelSize = qLabel->size();
+    double dWidthRatio = 1.0*qImageSize.width() / qLabelSize.width();
+    double dHeightRatio = 1.0*qImageSize.height() / qLabelSize.height();
+    if (dWidthRatio>dHeightRatio)
+    {
+        qScaledImage = qImage.scaledToWidth(qLabelSize.width());
+    }
+    else
+    {
+        qScaledImage = qImage.scaledToHeight(qLabelSize.height());
+    }
+    return qScaledImage;
+}
+
+void home_hotel::face_compare_show() //人脸比较界面显示
+{
+    QImage my_id_pic;
+    if(isFileExist(QString("./release/photo.bmp")))
+    {
+        my_id_pic.load(QString("./release/photo.bmp"));
+    }
+    else if(isFileExist(QString("./photo.bmp")))
+    {
+        my_id_pic.load(QString("./photo.bmp"));
+    }
+
+    QByteArray pic_tmp;
+    QBuffer buf(&pic_tmp);
+    my_id_pic.save(&buf,"BMP",20);
+    pic_IDcard = pic_tmp.toBase64();  //获取身份证图片转为BASE64用于上传
+    buf.close();
+    qDebug()<<"身份证图片大小:"<<pic_IDcard.length();
+    QImage scaleImage = ScaleImage2Label(my_id_pic, ui->id_pic);   // 显示到label上
+    ui->id_pic->setPixmap(QPixmap::fromImage(scaleImage));
+    ui->id_pic->setAlignment(Qt::AlignCenter);
+    ui->id_pic->show();
+    ui->help_msg_page3->setText("身份证读取成功，请正视摄像头进行认证比对");
+    ui->stackedWidget->setCurrentIndex(FACE_COMPARE);
+    open_camera();
+}
+
+void home_hotel::open_camera() //打开摄像头
+{
+    if(!camera->isOpened())  //没打开摄像头则打开
+    {
+        camera->open(0);
+    }else
+    {
+        ui->help_msg_page3->setText("摄像头打开失败!!");
+    }
+    frame_timer->start(camera_T); //开始读取视频
+    face_detect_flag = 1;
+}
+
+void home_hotel::close_camera() //关闭摄像头
+{
+    frame_timer->stop();
+    camera->release();
 }
 
 void home_hotel::update_time() //更新时间
@@ -200,6 +289,16 @@ void home_hotel::update_weather(QNetworkReply* reply) //更新显示天气
     reply->deleteLater();
 }
 
+bool home_hotel::isFileExist(QString fullFileName) //判断文件是否存在
+{
+    QFileInfo fileInfo(fullFileName);
+    if(fileInfo.isFile())
+    {
+        return true; //存在
+    }
+    return false; //不存在
+}
+
 void home_hotel::detect_card_finish() //身份证检测完成
 {
 #if 0
@@ -218,7 +317,246 @@ void home_hotel::detect_card_finish() //身份证检测完成
     tmp = QString::fromLocal8Bit(card_info.registry);
     qDebug()<<"签发机关："<<tmp;
 #endif
+    face_compare_show();
+}
 
+QImage home_hotel::Mat2QImage(cv::Mat& cvImg)  // Mat格式转换为QImage格式
+{
+    QImage qImg;
+    if(cvImg.channels()==3)                             //3 channels color image
+    {
+        cv::cvtColor(cvImg,cvImg,CV_BGR2RGB);
+        qImg =QImage((const unsigned char*)(cvImg.data),
+                    cvImg.cols, cvImg.rows,
+                    cvImg.cols*cvImg.channels(),
+                    QImage::Format_RGB888);
+    }
+    else if(cvImg.channels()==1)                    //grayscale image
+    {
+        qImg =QImage((const unsigned char*)(cvImg.data),
+                    cvImg.cols,cvImg.rows,
+                    cvImg.cols*cvImg.channels(),
+                    QImage::Format_Indexed8);
+    }
+    else
+    {
+        qImg =QImage((const unsigned char*)(cvImg.data),
+                    cvImg.cols,cvImg.rows,
+                    cvImg.cols*cvImg.channels(),
+                    QImage::Format_RGB888);
+    }
+    return qImg;
+}
+
+bool home_hotel::detectface(cv::Mat &image) //检测人脸
+{
+    std::vector<cv::Rect> faces;
+    cv::Mat gray;
+    cv::cvtColor(image,gray,CV_BGR2GRAY);
+    cv::equalizeHist(gray,gray);
+    ccf->detectMultiScale(gray,faces,1.1,3,0,cv::Size(200,200),cv::Size(400,400));
+
+    cv::Rect outline(120,40,400,400);
+    cv::rectangle(image,outline,cv::Scalar(255,166,106),2,8);
+
+    for(std::vector<cv::Rect>::const_iterator iter=faces.begin();iter!=faces.end();iter++)
+    {
+
+        cv::Rect rec = *iter;
+        if(rec.x>outline.x && rec.y > outline.y &&
+           (rec.x+rec.width) < (outline.x+outline.width) &&
+           (rec.y+rec.height)< (outline.y+outline.height))
+        {
+            return true;
+        }else
+        {
+            return false;
+        }
+    }
+    return false;
+}
+
+void home_hotel::request_token()
+{
+    QNetworkRequest ask_tooken(QUrl("https://aip.baidubce.com/oauth/2.0/token"));
+    QByteArray array("grant_type=client_credentials&client_id=");
+    array += api_key.toLocal8Bit();
+    array += "&client_secret=";
+    array += secret_key.toLocal8Bit();
+    face_compare_manager->post(ask_tooken,array);
+}
+
+void home_hotel::compare_face()
+{
+    if(token.isEmpty()) //如果没有获取token值则先获取token值
+    {
+        request_token();
+        return;
+    }
+
+    char quest_url[256]={0};
+    sprintf(quest_url,"https://aip.baidubce.com/rest/2.0/face/v3/match?access_token=%s",token.toLocal8Bit().data());
+    qDebug()<<"人脸信息上传--> URL:"<<quest_url;
+    QUrl qurl(quest_url);
+    QNetworkRequest request(qurl);
+    request.setHeader(QNetworkRequest::ContentTypeHeader,QVariant("application/json"));
+
+    QByteArray quest_array("[{\"image\":\"");
+    quest_array.append(pic_Live);
+    quest_array.append("\",\"image_type\":\"BASE64\",\"face_type\":\"LIVE\",\"quality_control\":\"LOW\",\"liveness_control\":\"NONE\"},{\"image\":\"");
+    quest_array.append(pic_IDcard);
+    quest_array.append("\",\"image_type\":\"BASE64\",\"face_type\":\"IDCARD\",\"quality_control\":\"LOW\",\"liveness_control\":\"NONE\"}]");
+    face_compare_manager->post(request,quest_array);
+}
+
+void home_hotel::get_frame()    //获取一帧图像
+{
+    frame_timer->stop();  //停止计时
+    camera->read(*frame_data);
+    if(frame_data->empty())
+    {
+        qDebug()<<"frame is empty!!";
+        frame_timer->start(camera_T);
+        return;
+    }
+
+//    if(video_record_timer->isActive()) //如果开始录制视频则记录该视频
+//    {
+//        cv::Mat videoframe = frame_data->clone();
+//        g_video_frame.append(videoframe);
+//    }
+
+    *q_image_data = Mat2QImage(*frame_data);  //Mat转化为QImage
+    if(face_detect_flag && detectface(*frame_data))
+    {
+        QByteArray tmp;
+        QBuffer buf(&tmp);
+        q_image_data->save(&buf,"BMP",20);
+        pic_Live = tmp.toBase64();  //获取摄像头图像数据转为base64存储
+        buf.close();
+        qDebug()<<"视频图像大小:"<<pic_Live.length();
+        compare_face();
+        face_detect_flag = 0;
+    }
+
+    QImage scaleImage = ScaleImage2Label(*q_image_data, ui->show_face);   // 显示到label上
+    ui->show_face->setPixmap(QPixmap::fromImage(scaleImage));
+    ui->show_face->setAlignment(Qt::AlignCenter);
+    ui->show_face->show();
+    frame_timer->start(camera_T);
+}
+
+void home_hotel::face_compare_result(QNetworkReply* reply)
+{
+    qDebug()<<"get face_compare_result!!";
+    QTextCodec *codec = QTextCodec::codecForName("utf8");
+    QString Receive_http = codec->toUnicode(reply->readAll());
+
+    qDebug()<<"Receive_http:"<<Receive_http;
+    QJsonDocument json_recv = QJsonDocument::fromJson(Receive_http.toLocal8Bit());
+
+    int err_code = 0;
+    QString msg;
+    if(!json_recv.isNull() && json_recv.isObject())
+    {
+        QJsonObject object = json_recv.object();
+        if(object.contains("error_code"))
+        {
+            QJsonValue error_code = object.value("error_code");
+            err_code = error_code.toInt();
+            switch(err_code)
+            {
+            case 0:break;
+            case 4:msg = "集群超限额,请联系管理员";break;
+            case 6:msg = "没有接口权限,请联系管理员";break;
+            case 17:msg = "每天流量超限额,请联系管理员";break;
+            case 18:msg = "QPS超限额,请联系管理员";break;
+            case 19:msg = "请求总量超限额,请联系管理员";break;
+            case 100:msg = "无效的access_token参数,请联系管理员";break;
+            case 110:msg = "Access Token失效,请联系管理员";break;
+            case 111:msg = "Access token过期,请联系管理员";break;
+
+            case 222201:
+            case 222205:
+            case 222302:
+            case 222206: msg = "服务端请求失败,请重试";break;
+
+            case 222202:
+            case 222203: msg = "图片模糊,请重试";break;
+
+
+            case 223113:case 223116:case 223121:
+            case 223122:case 223123:case 223124:
+            case 223125:case 223126:case 223127: msg = "人脸有遮挡,请重试";break;
+
+            case 223114:
+            case 223115: msg = "人脸模糊,请重试";break;
+            default:  msg = "未知错误,请重试(错误码:";
+                msg += QString::number(err_code);
+                msg += ")";
+                break;
+            }
+            if(err_code)
+            {
+                ui->help_msg_page3->setText(msg);
+                face_detect_flag = 1;
+            }
+        }
+
+        if(object.contains("result") && err_code == 0)
+        {
+            QJsonValue value = object.value("result");  // 获取指定 key 对应的 value
+            if (value.isObject())  //判断 value 是否为Object
+            {
+                QJsonObject result_object = value.toObject();
+                if(result_object.contains("score"))
+                {
+                    QJsonValue result_value = result_object.value("score");  // 获取指定 key 对应的 value
+                    if (value.isObject())  //判断 value 是否为Object
+                    {
+                        double result_score = result_value.toDouble();
+                        msg = "人证比对";
+                        if(result_score > confidence_threshold)
+                        {
+                            msg += "通过，相似度";
+                            msg += QString::number((result_score*10),'f',2);
+                            msg += "%!";
+                            ui->help_msg_page3->setText(msg);
+                            face_detect_flag = 0;
+                            close_camera(); //关闭摄像头
+                            ui->stackedWidget->setCurrentIndex(PHONENUMBER_SIGN);
+
+                        }else
+                        {
+                            msg += "未通过，相似度";
+                            msg += QString::number(result_score,'f',2);
+                            msg += "%，请重新比对";
+                            ui->help_msg_page3->setText(msg);
+                            face_detect_flag = 1;
+                        }
+                    }
+                }
+            }
+        }
+        else if(object.contains("access_token"))
+        {
+            QJsonValue value = object.value("access_token");  // 获取指定 key 对应的 value
+            if (value.isString())  //判断 value 是否为Object
+            {
+                token = value.toString(); //获取token值
+                qDebug()<<"get token:"<<token;
+                compare_face();
+            }
+        }
+    }
+    else
+    {
+        qDebug() <<"!json_recv.isNull() && json_recv.isObject()";
+        msg = "请求数据失败,请重试";
+        ui->help_msg_page3->setText(msg);
+        face_detect_flag = 1;
+    }
+    reply->deleteLater();//释放对象
 }
 
 void home_hotel::on_check_in_clicked() //入住
@@ -239,14 +577,24 @@ void home_hotel::on_check_out_clicked() //退房
 
 void home_hotel::on_exit_clicked()  //退出按钮
 {
-    int i = ui->stackedWidget->currentIndex();
-    int max = ui->stackedWidget->count();
-    if(i<max-1)
+    if(pthread_card->isRunning())
     {
-        i++;
-    }else
-        i = 0;
-    ui->stackedWidget->setCurrentIndex(i);
+        pthread_card->stop();
+        pthread_card->wait();
+    }
+    if(camera->isOpened()) //如果视频已经打开则关闭视频
+        close_camera();
+
+    ui->stackedWidget->setCurrentIndex(FIRST_PAGE);
+//-----------------用于预览界面-----------------
+//    int i = ui->stackedWidget->currentIndex();
+//    int max = ui->stackedWidget->count();
+//    if(i<max-1)
+//    {
+//        i++;
+//    }else
+//        i = 0;
+//    ui->stackedWidget->setCurrentIndex(i);
 }
 
 void home_hotel::set_lineEdit_text(int opt_code) //显示输入字符
@@ -426,3 +774,10 @@ void home_hotel::on_num_9_clicked()     //按键9
     set_lineEdit_text(9);
 }
 
+void home_hotel::on_stackedWidget_currentChanged(int arg1)
+{
+    if(arg1 == 0)
+        ui->exit->hide();
+    else
+        ui->exit->show();
+}

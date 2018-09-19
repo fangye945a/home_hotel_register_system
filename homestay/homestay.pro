@@ -22,5 +22,11 @@ HEADERS  += home_hotel.h \
 
 FORMS    += home_hotel.ui
 
+INCLUDEPATH  += D:/Qt/opencv/build/install/include \
+                D:/Qt/opencv/build/install/include/opencv \
+                D:/Qt/opencv/build/install/include/opencv2
+
+LIBS += -L D:\Qt\opencv\build\install\x64\mingw\bin\libopencv_*.dll
+
 RESOURCES += \
     picture.qrc

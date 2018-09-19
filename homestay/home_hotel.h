@@ -14,8 +14,22 @@
 #include <QJsonArray>
 #include <QJsonParseError>
 #include <QCloseEvent>
+#include <QTextCodec>
+#include <QBuffer>
+#include <QLabel>
+#include <QFileInfo>
+#include <QFile>
+#include <QImage>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/gpu/gpu.hpp>
 
 #include "detect_card_pthread.h"
+
+#define camera_T 20  //20ms获取一次图像
+#define  API_Key       "2Z51fFjIkF1AM0ZTFwiZG0LI"
+#define  Secret_Key    "rxW2gMF4TnIAAoyqedO8jnTL4h08jZbE"
 
 enum {
       FIRST_PAGE=0, //首页面
@@ -39,7 +53,17 @@ public:
     bool eventFilter(QObject *obj, QEvent *event);
     void home_hotel_init();         //参数初始化
     void signal_slots_connect();    //连接信号与槽
-    void closeEvent(QCloseEvent *event);
+    void closeEvent(QCloseEvent *event);  //关闭事件
+    void face_compare_show(); //人脸比较界面显示
+    void open_camera();       //打开摄像头
+    void close_camera();      //关闭摄像头
+    QImage Mat2QImage(cv::Mat &cvImg); //Mat转QImage
+    bool isFileExist(QString fullFileName); //判断文件是否存在
+    QImage ScaleImage2Label(QImage qImage, QLabel *qLabel);     //使图片能适应Lable部件
+    bool detectface(cv::Mat &image);     //检测人脸
+    void request_token();           //获取token值
+    void compare_face();            //人脸比对请求
+
 public slots:
     void update_time();
 
@@ -48,6 +72,10 @@ public slots:
     void update_weather(QNetworkReply *reply); //更新天气
 
     void detect_card_finish();  //身份证检测完成
+
+    void get_frame(); //从摄像头获取一帧图像
+
+    void face_compare_result(QNetworkReply *reply); //获取人脸比对结果
 private slots:
     void on_check_in_clicked();
 
@@ -83,18 +111,35 @@ private slots:
 
     void on_check_out_clicked();
 
+    void on_stackedWidget_currentChanged(int arg1); //页面切换
+
 private:
     Ui::home_hotel *ui;
     int focus_flag;   //-1 无焦点 0 电话号码  1 验证码
+    int face_detect_flag;           //人脸检测完成标志
+    int confidence_threshold;
     QString local_city;   //当前所在城市
+
+    QString token;          //百度接口参数值
+    QString api_key;
+    QString secret_key;
 
     QTimer *time_timer;            //时间定时器
     QTimer *weather_timer;         //天气定时器
+    QTimer *frame_timer;           //视频帧获取定时器
 
     QNetworkAccessManager *face_compare_manager;    //人脸比较
     QNetworkAccessManager *weather_manager;         //天气请求
 
-    detect_card_pthread *pthread_card;
+    detect_card_pthread *pthread_card;  //身份证检测线程
+
+    cv::VideoCapture *camera;       //视频获取对象
+    cv::CascadeClassifier *ccf;      //创建脸部对象
+    cv::Mat *frame_data;            //视频图像数据
+    QImage *q_image_data;           //人脸数据
+
+    QByteArray pic_IDcard;  //证件照 BASE64
+    QByteArray pic_Live;    //生活照 BASE64
 };
 
 #endif // HOME_HOTEL_H
