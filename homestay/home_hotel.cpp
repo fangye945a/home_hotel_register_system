@@ -83,6 +83,9 @@ void home_hotel::home_hotel_init()
     api_key = API_Key;
     secret_key = Secret_Key;
     confidence_threshold = 70;
+    hotel_id = "1";
+    opt_code = -1;
+    identifying_code.clear();
     ui->exit->hide();
 
     frame_data = new cv::Mat;
@@ -121,6 +124,8 @@ void home_hotel::signal_slots_connect()
     face_compare_manager = new QNetworkAccessManager(this); //人脸比对请求
     connect(face_compare_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(face_compare_result(QNetworkReply*)));
 
+    upload_info_manager = new QNetworkAccessManager(this); //身份信息上传请求
+    connect(upload_info_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(upload_info_result(QNetworkReply*)));
 }
 
 void home_hotel::closeEvent(QCloseEvent *event)  //关闭前退出线程
@@ -187,7 +192,7 @@ void home_hotel::open_camera() //打开摄像头
         ui->help_msg_page3->setText("摄像头打开失败!!");
     }
     frame_timer->start(camera_T); //开始读取视频
-    face_detect_flag = 1;
+    face_detect_flag = 1;       //开启人脸识别
 }
 
 void home_hotel::close_camera() //关闭摄像头
@@ -446,6 +451,100 @@ void home_hotel::get_frame()    //获取一帧图像
     frame_timer->start(camera_T);
 }
 
+void home_hotel::upload_info() //上传身份证信息
+{
+    QUrl qurl("http://hotel.inteink.com/hotel/login/uploadInfo");
+    QNetworkRequest request(qurl);
+    request.setHeader(QNetworkRequest::ContentTypeHeader,QVariant("application/json"));
+
+    QByteArray quest_array("{\"id\":");
+    quest_array.append(hotel_id.toUtf8());
+
+    quest_array.append(",\"card_img\":\"");
+    quest_array.append(pic_IDcard);
+
+    quest_array.append("\",\"face_img\":\"");
+    quest_array.append(pic_Live);
+
+    quest_array.append("\",\"username\":\"");
+    quest_array.append(QString::fromLocal8Bit(card_info.name).toUtf8());
+    quest_array.append("\",\"tel\":\"");
+    quest_array.append("15574829685");
+    quest_array.append("\",\"cardid\":\"");
+    quest_array.append(QString::fromLocal8Bit(card_info.card_id).toUtf8());
+    quest_array.append("\",\"sex\":\"");
+    quest_array.append(QString::fromLocal8Bit(card_info.sex).toUtf8());
+    quest_array.append("\",\"nativeplace\":\"");
+    quest_array.append(QString::fromLocal8Bit(card_info.nation).toUtf8());
+    quest_array.append("\",\"birthday\":\"");
+    quest_array.append(QString::fromLocal8Bit(card_info.birth).toUtf8());
+    quest_array.append("\",\"nativeaddress\":\"");
+    quest_array.append(QString::fromLocal8Bit(card_info.address).toUtf8());
+    quest_array.append("\",\"sign\":\"");
+    quest_array.append(QString::fromLocal8Bit(card_info.registry).toUtf8());
+    quest_array.append("\"}");
+
+    qDebug()<<"上传身份证信息---> URL:"<<qurl;
+    upload_info_manager->post(request,quest_array);
+}
+
+void home_hotel::upload_info_result(QNetworkReply* reply) //上传身份证信息回复
+{
+    QTextCodec *codec = QTextCodec::codecForName("utf8");
+    QString Receive_http = reply->readAll();//codec->toUnicode(reply->readAll());
+    qDebug()<<"上传身份信息回复-->"<<Receive_http;
+
+    QJsonParseError err;
+    QJsonDocument json_recv = QJsonDocument::fromJson(Receive_http.toUtf8(),&err);
+    qDebug() << "error_code ="<<err.error;
+    if(!json_recv.isNull() && json_recv.isObject())
+    {
+        QJsonObject object = json_recv.object();
+        if(object.contains("ret_code") && object.contains("result"))
+        {
+            QJsonValue ret_code = object.value("ret_code");
+            switch(ret_code.toInt())
+            {
+                case 200:
+                {
+                    qDebug()<<"获取数据成功";
+                    ui->stackedWidget->setCurrentIndex(PHONENUMBER_SIGN);
+                }break;
+                case 400:
+                {
+                    qDebug()<<"获取数据失败";
+                    QJsonValue help_msg = object.value("result");
+                    ui->fail_help->setText(help_msg.toString());
+                    ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
+                }break;
+            default:qDebug()<<"未知返回码:"<<ret_code.toInt();break;
+            }
+        }else
+        {
+            qDebug()<<"未包含指定字段!!";
+        }
+    }else
+    {
+        qDebug()<<"Json格式有误!!";
+    }
+    close_camera(); //关闭摄像头
+}
+
+void home_hotel::upload_info_add_people()
+{
+    common_manager = new QNetworkAccessManager(this); //身份信息上传请求
+    connect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(upload_info_add_people_result(QNetworkReply*))); //连接槽
+}
+
+void home_hotel::upload_info_add_people_result(QNetworkReply *reply)
+{
+
+    disconnect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(upload_info_add_people_result(QNetworkReply*))); //取消连接
+    delete common_manager;  //用完释放
+    common_manager = NULL;
+    qDebug()<<"释放公用http请求句柄..";
+}
+
 void home_hotel::face_compare_result(QNetworkReply* reply)
 {
     qDebug()<<"get face_compare_result!!";
@@ -515,17 +614,20 @@ void home_hotel::face_compare_result(QNetworkReply* reply)
                     if (value.isObject())  //判断 value 是否为Object
                     {
                         double result_score = result_value.toDouble();
-                        msg = "人证比对";
+
                         if(result_score > confidence_threshold)
                         {
-                            msg += "通过，相似度";
-                            msg += QString::number((result_score*10),'f',2);
-                            msg += "%!";
+                            msg = "人证比对完成，数据加载中,请稍后..";
                             ui->help_msg_page3->setText(msg);
                             face_detect_flag = 0;
-                            close_camera(); //关闭摄像头
-                            ui->stackedWidget->setCurrentIndex(PHONENUMBER_SIGN);
-
+                            if(opt_code == CHECK_IN)
+                               upload_info();  //上传身份证信息
+                            else if(opt_code == ADD_PEOPLE)  //增加人员
+                               upload_info_add_people();//上传增加人员的身份信息
+                            else if(opt_code == GET_KEY)  //取钥匙
+                                ;
+                            else if(opt_code == CHECK_OUT) //退房
+                                ;
                         }else
                         {
                             msg += "未通过，相似度";
@@ -559,20 +661,162 @@ void home_hotel::face_compare_result(QNetworkReply* reply)
     reply->deleteLater();//释放对象
 }
 
-void home_hotel::on_check_in_clicked() //入住
+void home_hotel::on_get_code_clicked() //获取验证码
 {
+    common_manager = new QNetworkAccessManager(this); //身份信息上传请求
+    connect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(get_code_reply(QNetworkReply*))); //连接槽
+
+    /*设置发送数据*/
+    char quest_array[256]="http://hotel.inteink.com/hotel/tenant/getNumber?telephone=";
+    QNetworkRequest quest;
+    sprintf(quest_array,"%s%s",quest_array,ui->phone_number->text().toUtf8().data());
+    qDebug("请求验证码--> URL:%s\n",quest_array);
+    quest.setUrl(QUrl(quest_array));
+    quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
+    common_manager->get(quest);
+}
+
+void home_hotel::get_code_reply(QNetworkReply* reply)   //获取响应
+{
+    QString all = reply->readAll();
+    qDebug()<<"请求验证码响应-->"<<all;
+    QJsonParseError err;
+    QJsonDocument json_recv = QJsonDocument::fromJson(all.toUtf8(),&err);
+    qDebug() << "error_code ="<<err.error;
+    if(!json_recv.isNull() && json_recv.isObject())
+    {
+        QJsonObject object = json_recv.object();
+        if(object.contains("ret_code") && object.contains("result"))
+        {
+            QJsonValue ret_code = object.value("ret_code");
+            int temp = ret_code.toInt();
+            if(temp == 400)
+            {
+                qDebug()<<"获取验证码失败";
+                QJsonValue help_msg = object.value("result");
+                ui->fail_help->setText(help_msg.toString());
+                ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
+            }
+            else
+            {
+                identifying_code = QString::number(temp);
+                qDebug()<<"获取验证码成功:"<<identifying_code;
+            }
+
+        }else
+        {
+            qDebug()<<"未包含指定字段!!";
+        }
+    }else
+    {
+        qDebug()<<"Json格式有误!!";
+    }
+
+    //identifying_code = "123456";
+    disconnect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(get_code_reply(QNetworkReply*))); //取消连接
+    delete common_manager;  //用完释放
+    common_manager = NULL;
+    qDebug()<<"释放公用http请求句柄..";
+}
+
+void home_hotel::ensure_check_in() //确认登记入住
+{
+    common_manager = new QNetworkAccessManager(this); //身份信息上传请求
+    connect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(ensure_check_in_reply(QNetworkReply*))); //连接槽
+
+    /*设置发送数据*/
+    char quest_array[256]="http://hotel.inteink.com/hotel/wav/sendMessage?telephone=";
+    QNetworkRequest quest;
+    sprintf(quest_array,"%s%s",quest_array,ui->phone_number->text().toUtf8().data());
+    qDebug("确认入住请求--> URL:%s\n",quest_array);
+    quest.setUrl(QUrl(quest_array));
+    quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
+    common_manager->get(quest);
+}
+
+void home_hotel::ensure_check_in_reply(QNetworkReply* reply) //确认登记入住
+{
+    QString all = reply->readAll();
+    QString msg;
+    qDebug()<<"确认入住请求响应-->"<<all;
+    QJsonParseError err;
+    QJsonDocument json_recv = QJsonDocument::fromJson(all.toUtf8(),&err);
+    qDebug() << "error_code ="<<err.error;
+    if(!json_recv.isNull() && json_recv.isObject())
+    {
+        QJsonObject object = json_recv.object();
+        if(object.contains("house_ordernumber") && object.contains("result")) //成功
+        {
+            QJsonValue success_msg = object.value("result");
+            msg = success_msg.toString();
+            ui->success_help->setText(msg);
+            ui->stackedWidget->setCurrentIndex(CHECK_IN_SUCCESS);
+        }
+        else if(object.contains("ret_code") && object.contains("result"))
+        {
+            QJsonValue ret_code = object.value("ret_code");
+            int temp = ret_code.toInt();
+            if(temp == 400)
+            {
+                qDebug()<<"入住登记失败";
+                QJsonValue help_msg = object.value("result");
+                msg = help_msg.toString();
+                ui->fail_help->setText(msg);
+                ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
+            }
+        }else
+        {
+            qDebug()<<"未包含指定字段!!";
+        }
+    }else
+    {
+        qDebug()<<"Json格式有误!!";
+    }
+
+    disconnect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(ensure_check_in_reply(QNetworkReply*))); //取消连接
+    delete common_manager;  //用完释放
+    common_manager = NULL;
+    qDebug()<<"释放公用http请求句柄..";
+}
+
+void home_hotel::on_ensure_sign_clicked() //确认登记
+{
+    if(ui->test_code->text() == identifying_code)
+    {
+         ensure_check_in(); //确认入住
+    }else
+    {
+        ui->phone_sign_help_msg->setText("验证码有误");
+    }
+}
+
+void home_hotel::on_add_people_clicked() //增加人员
+{
+    opt_code = ADD_PEOPLE;
     ui->stackedWidget->setCurrentIndex(CARD_DETECT);
     pthread_card->start();
 }
 
+void home_hotel::on_check_in_clicked() //入住
+{
+    opt_code = CHECK_IN;
+    ui->stackedWidget->setCurrentIndex(CARD_DETECT);
+    pthread_card->start();
+
+}
+
 void home_hotel::on_get_the_key_clicked() //取钥匙
 {
-
+    opt_code = GET_KEY;
+    ui->stackedWidget->setCurrentIndex(CARD_DETECT);
+    pthread_card->start();
 }
 
 void home_hotel::on_check_out_clicked() //退房
 {
-
+    opt_code = CHECK_OUT;
+    ui->stackedWidget->setCurrentIndex(CARD_DETECT);
+    pthread_card->start();
 }
 
 void home_hotel::on_exit_clicked()  //退出按钮

@@ -36,7 +36,15 @@ enum {
       CARD_DETECT,  //身份证检测
       FACE_COMPARE, //人证对比
       PHONENUMBER_SIGN, //登记号码
+      CHECK_IN_SUCCESS, //入住成功页面
       ASK_ERROR_PAGE    //请求返回错误提示页面
+     };
+
+enum {
+      CHECK_IN=0, //入住
+      ADD_PEOPLE, //增加人员
+      GET_KEY,   //取钥匙
+      CHECK_OUT,  //退房
      };
 
 namespace Ui {
@@ -63,7 +71,9 @@ public:
     bool detectface(cv::Mat &image);     //检测人脸
     void request_token();           //获取token值
     void compare_face();            //人脸比对请求
-
+    void upload_info();             //上传身份证信息
+    void upload_info_add_people();             //增加人员上传身份证信息
+    void ensure_check_in();         //
 public slots:
     void update_time();
 
@@ -76,6 +86,14 @@ public slots:
     void get_frame(); //从摄像头获取一帧图像
 
     void face_compare_result(QNetworkReply *reply); //获取人脸比对结果
+
+    void upload_info_result(QNetworkReply *reply);
+
+    void upload_info_add_people_result(QNetworkReply *reply);
+
+    void get_code_reply(QNetworkReply *reply);
+
+    void ensure_check_in_reply(QNetworkReply *reply);
 private slots:
     void on_check_in_clicked();
 
@@ -113,11 +131,22 @@ private slots:
 
     void on_stackedWidget_currentChanged(int arg1); //页面切换
 
+    void on_get_code_clicked();
+
+    void on_ensure_sign_clicked();
+
+    void on_add_people_clicked();
+
 private:
     Ui::home_hotel *ui;
     int focus_flag;   //-1 无焦点 0 电话号码  1 验证码
-    int face_detect_flag;           //人脸检测完成标志
-    int confidence_threshold;
+    int face_detect_flag;           //是否进行人脸识别标志
+    int confidence_threshold;      //人脸比对置信度阈值
+
+    int opt_code;       //操作码
+
+    QString identifying_code;           //验证码
+    QString ordernumber;                //订单号
     QString local_city;   //当前所在城市
 
     QString token;          //百度接口参数值
@@ -130,6 +159,8 @@ private:
 
     QNetworkAccessManager *face_compare_manager;    //人脸比较
     QNetworkAccessManager *weather_manager;         //天气请求
+    QNetworkAccessManager *upload_info_manager;         //上传人员信息
+    QNetworkAccessManager *common_manager;          //公用请求句柄
 
     detect_card_pthread *pthread_card;  //身份证检测线程
 

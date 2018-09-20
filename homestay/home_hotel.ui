@@ -1131,7 +1131,7 @@ font: 25 24pt &quot;Microsoft YaHei UI Light&quot;;</string>
                    </widget>
                   </item>
                   <item>
-                   <widget class="QPushButton" name="pushButton">
+                   <widget class="QPushButton" name="get_code">
                     <property name="minimumSize">
                      <size>
                       <width>142</width>
@@ -1706,7 +1706,7 @@ font: 25 24pt &quot;Microsoft YaHei UI Light&quot;;</string>
                </spacer>
               </item>
               <item>
-               <widget class="QLabel" name="success_msg_2">
+               <widget class="QLabel" name="phone_sign_help_msg">
                 <property name="styleSheet">
                  <string notr="true">color: rgb(255, 0, 0);
 font: 75 12pt &quot;Microsoft YaHei UI Light&quot;;</string>
@@ -1865,12 +1865,24 @@ font: 75 12pt &quot;Microsoft YaHei UI Light&quot;;</string>
               </item>
               <item>
                <widget class="QLabel" name="success_help">
+                <property name="minimumSize">
+                 <size>
+                  <width>700</width>
+                  <height>0</height>
+                 </size>
+                </property>
                 <property name="styleSheet">
                  <string notr="true">color: rgb(0, 0, 0);
 font: 25 24pt &quot;Microsoft YaHei UI Light&quot;;</string>
                 </property>
                 <property name="text">
                  <string>秘钥获取成功，您的房间为201</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
                 </property>
                </widget>
               </item>
@@ -1958,7 +1970,7 @@ font: 25 24pt &quot;Microsoft YaHei UI Light&quot;;</string>
                </spacer>
               </item>
               <item>
-               <widget class="QPushButton" name="pushButton_3">
+               <widget class="QPushButton" name="add_people">
                 <property name="minimumSize">
                  <size>
                   <width>155</width>
@@ -2186,12 +2198,24 @@ border-image: url(:/new/prefix1/pictures/获取失败.png);
               </item>
               <item>
                <widget class="QLabel" name="fail_help">
+                <property name="minimumSize">
+                 <size>
+                  <width>700</width>
+                  <height>0</height>
+                 </size>
+                </property>
                 <property name="styleSheet">
                  <string notr="true">color: rgb(0, 0, 0);
 font: 25 24pt &quot;Microsoft YaHei UI Light&quot;;</string>
                 </property>
                 <property name="text">
-                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;认证失败，系统无法识别到您的&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;住房信息，请与房东核实！&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;认证失败，系统无法识别到您的住房信息，请与房东核实！&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
                 </property>
                </widget>
               </item>
