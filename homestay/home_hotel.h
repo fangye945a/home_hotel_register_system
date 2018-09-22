@@ -20,12 +20,15 @@
 #include <QFileInfo>
 #include <QFile>
 #include <QImage>
+#include <QDateTime>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/gpu/gpu.hpp>
 
 #include "detect_card_pthread.h"
+#include "video_update.h"
+
 
 #define camera_T 20  //20ms获取一次图像
 #define  API_Key       "2Z51fFjIkF1AM0ZTFwiZG0LI"
@@ -35,8 +38,8 @@ enum {
       FIRST_PAGE=0, //首页面
       CARD_DETECT,  //身份证检测
       FACE_COMPARE, //人证对比
-      PHONENUMBER_SIGN, //登记号码
-      ASK_ERROR_PAGE    //请求返回错误提示页面
+      SIGN_SUCCESS_PAGE, //登记成功提示页面
+      SIGN_FAIL_PAGE    //登记失败提示页面
      };
 
 namespace Ui {
@@ -50,7 +53,6 @@ class home_hotel : public QWidget
 public:
     explicit home_hotel(QWidget *parent = 0);
     ~home_hotel();
-    bool eventFilter(QObject *obj, QEvent *event);
     void home_hotel_init();         //参数初始化
     void signal_slots_connect();    //连接信号与槽
     void closeEvent(QCloseEvent *event);  //关闭事件
@@ -63,7 +65,8 @@ public:
     bool detectface(cv::Mat &image);     //检测人脸
     void request_token();           //获取token值
     void compare_face();            //人脸比对请求
-
+    void upload_info(char *authentication_flag);             //上传身份证信息
+    void print_log(QString &log, int flag=0);//打印日志
 public slots:
     void update_time();
 
@@ -76,48 +79,27 @@ public slots:
     void get_frame(); //从摄像头获取一帧图像
 
     void face_compare_result(QNetworkReply *reply); //获取人脸比对结果
+
+    void upload_info_result(QNetworkReply *reply);  //上传身份证信息结果
+
+    void start_upload_video(); //开始上传视频
+
 private slots:
-    void on_check_in_clicked();
-
     void on_exit_clicked();
-
-    void set_lineEdit_text(int opt_code);
-
-    void on_num_clean_clicked();
-
-    void on_num_0_clicked();
-
-    void on_num_del_clicked();
-
-    void on_num_1_clicked();
-
-    void on_num_2_clicked();
-
-    void on_num_3_clicked();
-
-    void on_num_4_clicked();
-
-    void on_num_5_clicked();
-
-    void on_num_6_clicked();
-
-    void on_num_7_clicked();
-
-    void on_num_8_clicked();
-
-    void on_num_9_clicked();
-
-    void on_get_the_key_clicked();
-
-    void on_check_out_clicked();
 
     void on_stackedWidget_currentChanged(int arg1); //页面切换
 
+    void on_self_help_regist_clicked();
+
+    void on_finish_clicked();
+
+    void on_finish_fail_clicked();
+
 private:
     Ui::home_hotel *ui;
-    int focus_flag;   //-1 无焦点 0 电话号码  1 验证码
     int face_detect_flag;           //人脸检测完成标志
     int confidence_threshold;
+    int face_compare_try_times;     //人脸比对失败次数
     QString local_city;   //当前所在城市
 
     QString token;          //百度接口参数值
@@ -126,12 +108,15 @@ private:
 
     QTimer *time_timer;            //时间定时器
     QTimer *weather_timer;         //天气定时器
-    QTimer *frame_timer;           //视频帧获取定时器
+    QTimer *frame_timer;
+    QTimer *video_record_timer;           //视频帧获取定时器
 
     QNetworkAccessManager *face_compare_manager;    //人脸比较
     QNetworkAccessManager *weather_manager;         //天气请求
+    QNetworkAccessManager *upload_info_manager;         //上传人员信息
 
     detect_card_pthread *pthread_card;  //身份证检测线程
+    VIDEO_UPDATE *video_upload; //视频压缩上传线程
 
     cv::VideoCapture *camera;       //视频获取对象
     cv::CascadeClassifier *ccf;      //创建脸部对象

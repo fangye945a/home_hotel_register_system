@@ -15,10 +15,12 @@ TEMPLATE = app
 
 SOURCES += main.cpp\
         home_hotel.cpp \
-    detect_card_pthread.cpp
+    detect_card_pthread.cpp \
+    video_update.cpp
 
 HEADERS  += home_hotel.h \
-    detect_card_pthread.h
+    detect_card_pthread.h \
+    video_update.h
 
 FORMS    += home_hotel.ui
 
@@ -27,6 +29,8 @@ INCLUDEPATH  += D:/Qt/opencv/build/install/include \
                 D:/Qt/opencv/build/install/include/opencv2
 
 LIBS += -L D:\Qt\opencv\build\install\x64\mingw\bin\libopencv_*.dll
+
+RC_FILE  = myico.rc
 
 RESOURCES += \
     picture.qrc

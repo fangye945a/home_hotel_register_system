@@ -2,7 +2,7 @@
 #include "ui_home_hotel.h"
 
 QList<cv::Mat> g_video_frame; //全局视频录制画面
-QString hotel_id;     //酒店ID
+
 
 extern CARD_INFO card_info; //身份证信息
 
@@ -13,14 +13,20 @@ home_hotel::home_hotel(QWidget *parent) :
     ui->setupUi(this);
 
     QPalette palette;   //显示首界面背景图
-    palette.setBrush(QPalette::Background, QBrush(QPixmap("../homestay/pictures/首界面.png")));
+    if(isFileExist(QString("./pictures/首界面.png")))
+    {
+        palette.setBrush(QPalette::Background, QBrush(QPixmap("./pictures/首界面.png")));
+    }
+    else if(isFileExist(QString("../homestay/pictures/首界面.png")))
+    {
+        palette.setBrush(QPalette::Background, QBrush(QPixmap("../homestay/pictures/首界面.png")));
+    }
+
     this->setPalette(palette);
-
-    ui->phone_number->installEventFilter(this);  //声明QLineEdit focus机制的存在
-    ui->test_code->installEventFilter(this);
-
     signal_slots_connect(); //连接信号与槽
     home_hotel_init();      //参数初始化
+    //this->setWindowFlags (Qt::Window | Qt::FramelessWindowHint);
+    this->showFullScreen();
 }
 
 home_hotel::~home_hotel()
@@ -28,67 +34,20 @@ home_hotel::~home_hotel()
     delete ui;
 }
 
-bool home_hotel::eventFilter(QObject *obj, QEvent *event)
-{
-    if( event->type() == QEvent::MouseButtonPress)
-    {
-        if(ui->test_code->text().isEmpty())
-        {
-            ui->test_code->setText("请输入验证码");
-            ui->test_code->setStyleSheet("#test_code{color: rgb(184, 184, 184);"
-                                            "font: 75 16pt \"Microsoft YaHei UI Light\";"
-                                            "border-image: url(:/new/prefix1/pictures/输入文本框.png);}");
-        }
-        if(ui->phone_number->text().isEmpty())
-        {
-            ui->phone_number->setText("请输入手机号");
-            ui->phone_number->setStyleSheet("#phone_number{color: rgb(184, 184, 184);"
-                                            "font: 75 16pt \"Microsoft YaHei UI Light\";"
-                                            "border-image: url(:/new/prefix1/pictures/输入文本框.png);}");
-        }
-        QMouseEvent *me = (QMouseEvent*)event;
-        if( me->button() == Qt::LeftButton )
-        {
-            if( obj == ui->phone_number )
-            {
-                if(ui->phone_number->text() == "请输入手机号")
-                {
-                    ui->phone_number->clear();
-                    ui->phone_number->setStyleSheet("#phone_number{color: rgb(0,0,0);"
-                                                    "font: 75 16pt \"Microsoft YaHei UI Light\";"
-                                                    "border-image: url(:/new/prefix1/pictures/输入文本框.png);}");
-                }
-                focus_flag = 0;
-            }
-            else if(obj == ui->test_code )
-            {
-                if(ui->test_code->text() == "请输入验证码")
-                {
-                    ui->test_code->clear();
-                    ui->test_code->setStyleSheet("#test_code{color: rgb(0,0,0);"      //"color: rgb(184, 184, 184);"
-                                                 "font: 75 16pt \"Microsoft YaHei UI Light\";"
-                                                 "border-image: url(:/new/prefix1/pictures/输入文本框.png);}");
-                }
-                focus_flag = 1;
-            }
-        }
-    }
-    return QWidget::eventFilter(obj,event);
-}
 
 void home_hotel::home_hotel_init()
 {
-    focus_flag = -1;
+    face_compare_try_times = 0;
+    face_detect_flag = 0;
     local_city = "宁波";
     api_key = API_Key;
     secret_key = Secret_Key;
     confidence_threshold = 70;
     ui->exit->hide();
-
     frame_data = new cv::Mat;
     camera = new cv::VideoCapture;
     ccf = new cv::CascadeClassifier;
-    if(!ccf->load("../homestay/haarcascade_frontalface_default_2.4.9.xml")) //导入opencv自带检测的文件
+    if(!ccf->load("./haarcascade_frontalface_default_2.4.9.xml")) //导入opencv自带检测的文件
        qDebug()<<"无法加载xml文件";
     else
        qDebug()<<"加载xml文件成功";
@@ -99,6 +58,8 @@ void home_hotel::home_hotel_init()
     weather_timer->start(60*60*1000); //每小时更新一次天气
     weather_inquiry();  //获取天气
     update_time();  //更新时间
+    request_token(); //请求token值
+
 }
 
 void home_hotel::signal_slots_connect()
@@ -115,14 +76,35 @@ void home_hotel::signal_slots_connect()
     weather_manager = new QNetworkAccessManager(this); //天气数据请求
     connect(weather_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(update_weather(QNetworkReply*)));
 
-    pthread_card = new detect_card_pthread();
+    pthread_card = new detect_card_pthread();           //检测身份证信息
     connect(pthread_card,SIGNAL(detected()),this, SLOT(detect_card_finish()));
 
     face_compare_manager = new QNetworkAccessManager(this); //人脸比对请求
     connect(face_compare_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(face_compare_result(QNetworkReply*)));
 
+    video_record_timer = new QTimer(this);   //视频录制计时
+    connect(video_record_timer, SIGNAL(timeout()), this, SLOT(start_upload_video()));         //时间定时器
 }
 
+void home_hotel::print_log(QString &log,int flag) //保存日志
+{
+    if(flag == 0)
+    {
+        qDebug()<<QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")<<":"<<log;
+    }
+    else if(flag == 1)
+    {
+        QFile myfile("./log.txt");
+        myfile.open(QIODevice::WriteOnly|QIODevice::Append);
+
+        myfile.write("\n");
+        QString now_time = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
+        now_time += log;
+        myfile.write(now_time.toLocal8Bit());
+        myfile.close();
+    }
+
+}
 void home_hotel::closeEvent(QCloseEvent *event)  //关闭前退出线程
 {
     if(pthread_card->isRunning())    //退出前先关闭线程
@@ -172,7 +154,7 @@ void home_hotel::face_compare_show() //人脸比较界面显示
     ui->id_pic->setPixmap(QPixmap::fromImage(scaleImage));
     ui->id_pic->setAlignment(Qt::AlignCenter);
     ui->id_pic->show();
-    ui->help_msg_page3->setText("身份证读取成功，请正视摄像头进行认证比对");
+    ui->help_msg_page3->setText("身份证读取成功，请正视摄像头进行认证比对。");
     ui->stackedWidget->setCurrentIndex(FACE_COMPARE);
     open_camera();
 }
@@ -188,8 +170,17 @@ void home_hotel::open_camera() //打开摄像头
     }
     frame_timer->start(camera_T); //开始读取视频
     face_detect_flag = 1;
-}
 
+    //video_record_timer->start(5000); //录制5秒
+}
+void home_hotel::start_upload_video()
+{
+    video_record_timer->stop();
+
+    video_upload = new VIDEO_UPDATE();
+    video_upload->start();  //开启压缩上传线程
+
+}
 void home_hotel::close_camera() //关闭摄像头
 {
     frame_timer->stop();
@@ -378,6 +369,7 @@ bool home_hotel::detectface(cv::Mat &image) //检测人脸
 
 void home_hotel::request_token()
 {
+    qDebug()<<QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")<<":获取token值";
     QNetworkRequest ask_tooken(QUrl("https://aip.baidubce.com/oauth/2.0/token"));
     QByteArray array("grant_type=client_credentials&client_id=");
     array += api_key.toLocal8Bit();
@@ -388,6 +380,7 @@ void home_hotel::request_token()
 
 void home_hotel::compare_face()
 {
+    qDebug()<<QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")<<":人脸比对请求";
     if(token.isEmpty()) //如果没有获取token值则先获取token值
     {
         request_token();
@@ -420,11 +413,11 @@ void home_hotel::get_frame()    //获取一帧图像
         return;
     }
 
-//    if(video_record_timer->isActive()) //如果开始录制视频则记录该视频
-//    {
-//        cv::Mat videoframe = frame_data->clone();
-//        g_video_frame.append(videoframe);
-//    }
+    if(video_record_timer->isActive()) //如果开始录制视频则记录该视频
+    {
+        cv::Mat videoframe = frame_data->clone();
+        g_video_frame.append(videoframe);
+    }
 
     *q_image_data = Mat2QImage(*frame_data);  //Mat转化为QImage
     if(face_detect_flag && detectface(*frame_data))
@@ -446,9 +439,101 @@ void home_hotel::get_frame()    //获取一帧图像
     frame_timer->start(camera_T);
 }
 
+
+void home_hotel::upload_info(char *authentication_flag) //上传身份证信息
+{
+    qDebug()<<QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")<<":上传身份证信息";
+    upload_info_manager = new QNetworkAccessManager(this); //身份信息上传请求
+    connect(upload_info_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(upload_info_result(QNetworkReply*))); //连接槽
+
+    QUrl qurl("http://hotel.inteink.com/hotel/religion/religionInfoGet");
+    QNetworkRequest request(qurl);
+    request.setHeader(QNetworkRequest::ContentTypeHeader,QVariant("application/json"));
+
+    QByteArray quest_array("{\"card_img\":\"");
+    quest_array.append(pic_IDcard);
+    quest_array.append("\",\"face_img\":\"");
+    quest_array.append(pic_Live);
+    quest_array.append("\",\"authentication\":\"");
+    quest_array.append(authentication_flag);
+    quest_array.append("\",\"username\":\"");
+    quest_array.append(QString::fromLocal8Bit(card_info.name).toUtf8());
+
+    quest_array.append("\",\"cardid\":\"");
+    quest_array.append(QString::fromLocal8Bit(card_info.card_id).toUtf8());
+    quest_array.append("\",\"sex\":\"");
+    quest_array.append(QString::fromLocal8Bit(card_info.sex).toUtf8());
+    quest_array.append("\",\"nativeplace\":\"");
+    quest_array.append(QString::fromLocal8Bit(card_info.nation).toUtf8());
+    quest_array.append("\",\"birthday\":\"");
+    quest_array.append(QString::fromLocal8Bit(card_info.birth).toUtf8());
+    quest_array.append("\",\"nativeaddress\":\"");
+    quest_array.append(QString::fromLocal8Bit(card_info.address).toUtf8());
+    quest_array.append("\",\"sign\":\"");
+    quest_array.append(QString::fromLocal8Bit(card_info.registry).toUtf8());
+    quest_array.append("\"}");
+
+    qDebug()<<"上传身份证信息---> URL:"<<qurl;
+    upload_info_manager->post(request,quest_array);
+    ui->help_msg_page3->setText("登记中,请稍后...");
+}
+
+void home_hotel::upload_info_result(QNetworkReply *reply)
+{
+    qDebug()<<QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")<<":身份证信息上传完成";
+    //QTextCodec *codec = QTextCodec::codecForName("utf8");
+    QString Receive_http = reply->readAll();//codec->toUnicode(reply->readAll());
+    qDebug()<<"上传身份信息回复-->"<<Receive_http;
+
+    QJsonParseError err;
+    QJsonDocument json_recv = QJsonDocument::fromJson(Receive_http.toUtf8(),&err);
+    qDebug() << "error_code ="<<err.error;
+    if(!json_recv.isNull() && json_recv.isObject())
+    {
+        QJsonObject object = json_recv.object();
+        if(object.contains("ret_code") && object.contains("result"))
+        {
+            QJsonValue ret_code = object.value("ret_code");
+            switch(ret_code.toInt())
+            {
+                case 200:
+                {
+                    qDebug()<<"获取数据成功";
+                    ui->stackedWidget->setCurrentIndex(SIGN_SUCCESS_PAGE);
+                }break;
+                case 400:
+                {
+                    qDebug()<<"获取数据失败";
+                    ui->stackedWidget->setCurrentIndex(SIGN_FAIL_PAGE);
+                }break;
+            default:
+                qDebug()<<"未知返回码:"<<ret_code.toInt();
+                ui->stackedWidget->setCurrentIndex(SIGN_FAIL_PAGE);
+                break;
+            }
+        }else
+        {
+            qDebug()<<"未包含指定字段!!";
+            ui->stackedWidget->setCurrentIndex(SIGN_FAIL_PAGE);
+        }
+    }else
+    {
+        qDebug()<<"Json格式有误!!";
+        ui->stackedWidget->setCurrentIndex(SIGN_FAIL_PAGE);
+    }
+    close_camera(); //关闭摄像头
+
+
+    disconnect(upload_info_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(upload_info_result(QNetworkReply*))); //取消连接
+    delete upload_info_manager;  //用完释放
+    upload_info_manager = NULL;
+    qDebug()<<"释放公用http请求句柄..";
+}
+
+
 void home_hotel::face_compare_result(QNetworkReply* reply)
 {
-    qDebug()<<"get face_compare_result!!";
+    qDebug()<<QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")<<":人脸比对完成";
     QTextCodec *codec = QTextCodec::codecForName("utf8");
     QString Receive_http = codec->toUnicode(reply->readAll());
 
@@ -515,24 +600,24 @@ void home_hotel::face_compare_result(QNetworkReply* reply)
                     if (value.isObject())  //判断 value 是否为Object
                     {
                         double result_score = result_value.toDouble();
-                        msg = "人证比对";
                         if(result_score > confidence_threshold)
                         {
-                            msg += "通过，相似度";
-                            msg += QString::number((result_score*10),'f',2);
-                            msg += "%!";
-                            ui->help_msg_page3->setText(msg);
                             face_detect_flag = 0;
-                            close_camera(); //关闭摄像头
-                            ui->stackedWidget->setCurrentIndex(PHONENUMBER_SIGN);
-
+                            upload_info("a");//上传身份证信息
                         }else
                         {
-                            msg += "未通过，相似度";
-                            msg += QString::number(result_score,'f',2);
-                            msg += "%，请重新比对";
+                            msg = "人证比对失败,请重试";
                             ui->help_msg_page3->setText(msg);
                             face_detect_flag = 1;
+                            if(face_compare_try_times > 3) //大于5次登记失败
+                            {
+                                upload_info("b");//上传身份证信息
+                                face_detect_flag = 0;
+//                                close_camera();
+//                                ui->stackedWidget->setCurrentIndex(SIGN_FAIL_PAGE);
+                                face_compare_try_times = 0;
+                            }
+                            face_compare_try_times++;
                         }
                     }
                 }
@@ -559,21 +644,6 @@ void home_hotel::face_compare_result(QNetworkReply* reply)
     reply->deleteLater();//释放对象
 }
 
-void home_hotel::on_check_in_clicked() //入住
-{
-    ui->stackedWidget->setCurrentIndex(CARD_DETECT);
-    pthread_card->start();
-}
-
-void home_hotel::on_get_the_key_clicked() //取钥匙
-{
-
-}
-
-void home_hotel::on_check_out_clicked() //退房
-{
-
-}
 
 void home_hotel::on_exit_clicked()  //退出按钮
 {
@@ -597,187 +667,26 @@ void home_hotel::on_exit_clicked()  //退出按钮
 //    ui->stackedWidget->setCurrentIndex(i);
 }
 
-void home_hotel::set_lineEdit_text(int opt_code) //显示输入字符
-{
-    qDebug()<<"set_lineEdit_text"<<" focus_flag="<<focus_flag<<" opt_code="<<opt_code;
-    if(focus_flag == 0)
-    {
-        QString msg = ui->phone_number->text();
-        switch (opt_code)
-        {
-            case -2:     //清空
-                ui->phone_number->clear();
-                break;
-            case -1:     //删除
-                msg.chop(1);
-                ui->phone_number->setText(msg);
-                break;
-            case 0:
-                msg.append("0");
-                ui->phone_number->setText(msg);
-                break;
-            case 1:
-                msg.append("1");
-                ui->phone_number->setText(msg);
-                break;
-            case 2:
-                msg.append("2");
-                ui->phone_number->setText(msg);
-                break;
-            case 3:
-                msg.append("3");
-                ui->phone_number->setText(msg);
-                break;
-            case 4:
-                msg.append("4");
-                ui->phone_number->setText(msg);
-                break;
-            case 5:
-                msg.append("5");
-                ui->phone_number->setText(msg);
-                break;
-            case 6:
-                msg.append("6");
-                ui->phone_number->setText(msg);
-                break;
-            case 7:
-                msg.append("7");
-                ui->phone_number->setText(msg);
-                break;
-            case 8:
-                msg.append("8");
-                ui->phone_number->setText(msg);
-                break;
-            case 9:
-                msg.append("9");
-                ui->phone_number->setText(msg);
-                break;
-        default: qDebug()<<"Unknow opt code = "<<opt_code;
-            break;
-        }
-    }
-    else if(focus_flag == 1)
-    {
-        QString msg = ui->test_code->text();
-        switch (opt_code)
-        {
-            case -2:     //清空
-                ui->test_code->clear();
-                break;
-            case -1:     //删除
-                msg.chop(1);
-                ui->test_code->setText(msg);
-                break;
-            case 0:
-                msg.append("0");
-                ui->test_code->setText(msg);
-                break;
-            case 1:
-                msg.append("1");
-                ui->test_code->setText(msg);
-                break;
-            case 2:
-                msg.append("2");
-                ui->test_code->setText(msg);
-                break;
-            case 3:
-                msg.append("3");
-                ui->test_code->setText(msg);
-                break;
-            case 4:
-                msg.append("4");
-                ui->test_code->setText(msg);
-                break;
-            case 5:
-                msg.append("5");
-                ui->test_code->setText(msg);
-                break;
-            case 6:
-                msg.append("6");
-                ui->test_code->setText(msg);
-                break;
-            case 7:
-                msg.append("7");
-                ui->test_code->setText(msg);
-                break;
-            case 8:
-                msg.append("8");
-                ui->test_code->setText(msg);
-                break;
-            case 9:
-                msg.append("9");
-                ui->test_code->setText(msg);
-                break;
-        default: qDebug()<<"Unknow opt code = "<<opt_code;
-            break;
-        }
-    }
-}
-
-void home_hotel::on_num_clean_clicked() //按键清空
-{
-    set_lineEdit_text(-2);
-}
-
-void home_hotel::on_num_del_clicked()   //按键删除
-{
-    set_lineEdit_text(-1);
-}
-
-void home_hotel::on_num_0_clicked()     //按键0
-{
-    set_lineEdit_text(0);
-}
-
-void home_hotel::on_num_1_clicked()     //按键1
-{
-    set_lineEdit_text(1);
-}
-
-void home_hotel::on_num_2_clicked()     //按键2
-{
-    set_lineEdit_text(2);
-}
-
-void home_hotel::on_num_3_clicked()     //按键3
-{
-    set_lineEdit_text(3);
-}
-
-void home_hotel::on_num_4_clicked()     //按键4
-{
-    set_lineEdit_text(4);
-}
-
-void home_hotel::on_num_5_clicked()     //按键5
-{
-    set_lineEdit_text(5);
-}
-
-void home_hotel::on_num_6_clicked()     //按键6
-{
-    set_lineEdit_text(6);
-}
-
-void home_hotel::on_num_7_clicked()     //按键7
-{
-    set_lineEdit_text(7);
-}
-
-void home_hotel::on_num_8_clicked()     //按键8
-{
-    set_lineEdit_text(8);
-}
-
-void home_hotel::on_num_9_clicked()     //按键9
-{
-    set_lineEdit_text(9);
-}
-
 void home_hotel::on_stackedWidget_currentChanged(int arg1)
 {
     if(arg1 == 0)
         ui->exit->hide();
     else
         ui->exit->show();
+}
+
+void home_hotel::on_self_help_regist_clicked()
+{
+    ui->stackedWidget->setCurrentIndex(CARD_DETECT);
+    pthread_card->start();
+}
+
+void home_hotel::on_finish_clicked()
+{
+    on_exit_clicked();
+}
+
+void home_hotel::on_finish_fail_clicked()
+{
+    on_exit_clicked();
 }

@@ -9,9 +9,6 @@
         <file>pictures/7.png</file>
         <file>pictures/8.png</file>
         <file>pictures/定位.png</file>
-        <file>pictures/广告位.png</file>
-        <file>pictures/客户退房.png</file>
-        <file>pictures/取钥匙.png</file>
         <file>pictures/认证对比图标.png</file>
         <file>pictures/识别身份证背景.png</file>
         <file>pictures/识别身份证图标.png</file>
@@ -21,15 +18,9 @@
         <file>pictures/退出.png</file>
         <file>pictures/证件背景.png</file>
         <file>pictures/主区域背景图.png</file>
-        <file>pictures/自助入住.png</file>
-        <file>pictures/确认登记按键.png</file>
-        <file>pictures/数字按键白色.png</file>
-        <file>pictures/数字按键灰色.png</file>
-        <file>pictures/获取验证码.png</file>
-        <file>pictures/输入文本框.png</file>
-        <file>pictures/获取秘钥完成.png</file>
-        <file>pictures/密钥获取成功.png</file>
-        <file>pictures/增加人员.png</file>
-        <file>pictures/获取失败.png</file>
+        <file>pictures/成功.png</file>
+        <file>pictures/自助登记.png</file>
+        <file>pictures/完成.png</file>
+        <file>pictures/失败.png</file>
     </qresource>
 </RCC>
