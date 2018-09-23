@@ -1,6 +1,5 @@
 #include "detect_card_pthread.h"
 
-
 CARD_INFO card_info = {0};   //用于保存身份证信息
 
 detect_card_pthread::detect_card_pthread()

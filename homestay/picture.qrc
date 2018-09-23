@@ -31,5 +31,9 @@
         <file>pictures/密钥获取成功.png</file>
         <file>pictures/增加人员.png</file>
         <file>pictures/获取失败.png</file>
+        <file>pictures/床.png</file>
+        <file>pictures/人.png</file>
+        <file>pictures/日期.png</file>
+        <file>pictures/早餐.png</file>
     </qresource>
 </RCC>

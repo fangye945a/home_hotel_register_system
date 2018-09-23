@@ -37,7 +37,8 @@ enum {
       FACE_COMPARE, //人证对比
       PHONENUMBER_SIGN, //登记号码
       CHECK_IN_SUCCESS, //入住成功页面
-      ASK_ERROR_PAGE    //请求返回错误提示页面
+      ASK_ERROR_PAGE,    //请求返回错误提示页面
+      ROOM_INFO_PAGE
      };
 
 enum {
@@ -73,7 +74,9 @@ public:
     void compare_face();            //人脸比对请求
     void upload_info();             //上传身份证信息
     void upload_info_add_people();             //增加人员上传身份证信息
-    void ensure_check_in();         //
+    void ensure_check_in();         // 确认登记
+    void get_room_info();           //获取住房信息(取钥匙)
+    void check_out_request();           //获取住房信息(取钥匙)
 public slots:
     void update_time();
 
@@ -87,11 +90,15 @@ public slots:
 
     void face_compare_result(QNetworkReply *reply); //获取人脸比对结果
 
-    void upload_info_result(QNetworkReply *reply);
+    void upload_info_result(QNetworkReply *reply);  //上传入住信息结果
 
-    void upload_info_add_people_result(QNetworkReply *reply);
+    void upload_info_add_people_result(QNetworkReply *reply); //添加同住人员
 
     void get_code_reply(QNetworkReply *reply);
+
+    void get_room_info_reply(QNetworkReply *reply);  //获取住房信息回复
+
+    void check_out_reply(); //退房回复
 
     void ensure_check_in_reply(QNetworkReply *reply);
 private slots:
@@ -137,6 +144,10 @@ private slots:
 
     void on_add_people_clicked();
 
+    void on_success_finish_clicked();
+
+    void on_fail_finish_clicked();
+
 private:
     Ui::home_hotel *ui;
     int focus_flag;   //-1 无焦点 0 电话号码  1 验证码
@@ -159,8 +170,8 @@ private:
 
     QNetworkAccessManager *face_compare_manager;    //人脸比较
     QNetworkAccessManager *weather_manager;         //天气请求
-    QNetworkAccessManager *upload_info_manager;         //上传人员信息
-    QNetworkAccessManager *common_manager;          //公用请求句柄
+
+    QNetworkAccessManager *common_manager;          //公用http请求句柄
 
     detect_card_pthread *pthread_card;  //身份证检测线程
 
