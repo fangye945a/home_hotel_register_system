@@ -13,9 +13,15 @@ home_hotel::home_hotel(QWidget *parent) :
     ui->setupUi(this);
 
     QPalette palette;   //显示首界面背景图
-    palette.setBrush(QPalette::Background, QBrush(QPixmap("../homestay/pictures/首界面.png")));
+    if(isFileExist(QString("./pictures/首界面.png")))
+    {
+        palette.setBrush(QPalette::Background, QBrush(QPixmap("./pictures/首界面.png")));
+    }
+    else if(isFileExist(QString("../homestay/pictures/首界面.png")))
+    {
+        palette.setBrush(QPalette::Background, QBrush(QPixmap("../homestay/pictures/首界面.png")));
+    }
     this->setPalette(palette);
-
     ui->phone_number->installEventFilter(this);  //声明QLineEdit focus机制的存在
     ui->test_code->installEventFilter(this);
 
@@ -93,10 +99,21 @@ void home_hotel::home_hotel_init()
     frame_data = new cv::Mat;
     camera = new cv::VideoCapture;
     ccf = new cv::CascadeClassifier;
-    if(!ccf->load("../homestay/haarcascade_frontalface_default_2.4.9.xml")) //导入opencv自带检测的文件
-       qDebug()<<"无法加载xml文件";
-    else
-       qDebug()<<"加载xml文件成功";
+    if(isFileExist(QString("./haarcascade_frontalface_default_2.4.9.xml")))
+    {
+        if(!ccf->load("./haarcascade_frontalface_default_2.4.9.xml")) //导入opencv自带检测的文件
+           qDebug()<<"无法加载xml文件";
+        else
+           qDebug()<<"加载xml文件成功";
+    }
+    else if(isFileExist(QString("../homestay/haarcascade_frontalface_default_2.4.9.xml")))
+    {
+        if(!ccf->load("../homestay/haarcascade_frontalface_default_2.4.9.xml")) //导入opencv自带检测的文件
+           qDebug()<<"无法加载xml文件";
+        else
+           qDebug()<<"加载xml文件成功";
+    }
+
 
     q_image_data = new QImage;
 
@@ -129,7 +146,7 @@ void home_hotel::signal_slots_connect()
 
 void home_hotel::closeEvent(QCloseEvent *event)  //关闭前退出线程
 {
-    if(pthread_card->isRunning())    //退出前先关闭线程
+    if(pthread_card != NULL && pthread_card->isRunning())    //退出前先关闭线程
     {
        pthread_card->stop();
        pthread_card->wait();
@@ -269,7 +286,9 @@ void home_hotel::update_weather(QNetworkReply* reply) //更新显示天气
     char style_sheet_cmd[64]={"border-image: url(:/new/prefix1/pictures/"};
     int weather_index = 0;
 
-    if(weather_type == "晴")
+    if(weather_type == "晴转阴"  || weather_type == "阴转晴")
+        weather_index = 1;
+    else if(weather_type == "晴")
         weather_index = 2;
     else if(weather_type == "阵雨")
         weather_index = 3;
@@ -461,9 +480,11 @@ void home_hotel::upload_info() //上传身份证信息
 
     QByteArray quest_array("{\"card_img\":\"");
     quest_array.append(pic_IDcard);
+    //quest_array.append("pic_IDcard");
     quest_array.append("\",\"face_img\":\"");
     quest_array.append(pic_Live);
-    quest_array.append(",\"id\":\"");
+    //quest_array.append("pic_Live");
+    quest_array.append("\",\"id\":\"");
     quest_array.append(hotel_id.toUtf8());
     quest_array.append("\",\"username\":\"");
     quest_array.append(QString::fromLocal8Bit(card_info.name).toUtf8());
@@ -482,7 +503,8 @@ void home_hotel::upload_info() //上传身份证信息
     quest_array.append(QString::fromLocal8Bit(card_info.registry).toUtf8());
     quest_array.append("\"}");
 
-    qDebug()<<"上传身份证信息---> URL:"<<qurl;
+    qDebug()<<"入住上传身份证信息---> URL:"<<qurl;
+    qDebug()<<"body:"<<QString::fromLocal8Bit(quest_array);
     common_manager->post(request,quest_array);
 }
 
@@ -503,7 +525,7 @@ void home_hotel::upload_info_result(QNetworkReply* reply) //上传身份证信�
             QJsonValue room_ordernumber = object.value("house_ordernumber");
             ordernumber = room_ordernumber.toString();
             QJsonValue help_msg = object.value("result");
-            ui->_help->setText(help_msg.toString());
+            ui->success_help->setText(help_msg.toString());
             ui->stackedWidget->setCurrentIndex(CHECK_IN_SUCCESS);
         }
         else if(object.contains("ret_code") && object.contains("result"))
@@ -587,7 +609,7 @@ void home_hotel::upload_info_add_people()
     quest_array.append(QString::fromLocal8Bit(card_info.registry).toUtf8());
     quest_array.append("\"}");
 
-    qDebug()<<"上传身份证信息---> URL:"<<qurl;
+    qDebug()<<"增加人员上传身份证信息---> URL:"<<qurl;
     common_manager->post(request,quest_array);
 
 }
@@ -595,7 +617,7 @@ void home_hotel::upload_info_add_people()
 void home_hotel::upload_info_add_people_result(QNetworkReply *reply)
 {
     QString Receive_http = reply->readAll();
-    qDebug()<<"上传身份信息回复-->"<<Receive_http;
+    qDebug()<<"增加人员上传身份证信息回复-->"<<Receive_http;
 
     QJsonParseError err;
     QJsonDocument json_recv = QJsonDocument::fromJson(Receive_http.toUtf8(),&err);
@@ -612,7 +634,7 @@ void home_hotel::upload_info_add_people_result(QNetworkReply *reply)
                 {
                     qDebug()<<"添加人员成功";
                     QJsonValue help_msg = object.value("result");
-                    ui->success_help->setText(help_msg);
+                    ui->success_help->setText(help_msg.toString());
                     ui->stackedWidget->setCurrentIndex(CHECK_IN_SUCCESS);
                 }break;
                 case 400:
@@ -647,7 +669,7 @@ void home_hotel::upload_info_add_people_result(QNetworkReply *reply)
 
 void home_hotel::face_compare_result(QNetworkReply* reply)
 {
-    qDebug()<<"get face_compare_result!!";
+    qDebug()<<"获得人脸比对结果!!";
     QTextCodec *codec = QTextCodec::codecForName("utf8");
     QString Receive_http = codec->toUnicode(reply->readAll());
 
@@ -732,11 +754,11 @@ void home_hotel::face_compare_result(QNetworkReply* reply)
                                 }break;
                                 case GET_KEY:
                                 {
-                                    get_room_info();    //获取住房信息
+                                    get_room_info_get_key();    //获取住房信息(取钥匙)
                                 }break;
                                 case CHECK_OUT:
                                 {
-
+                                    get_room_info_check_out();    //获取住房信息(退房)
                                 }break;
                             }
                         }else
@@ -763,7 +785,7 @@ void home_hotel::face_compare_result(QNetworkReply* reply)
     else
     {
         qDebug() <<"!json_recv.isNull() && json_recv.isObject()";
-        msg = "请求数据失败,请重试";
+        msg = "请求数据失败,网络故障!";
         ui->help_msg_page3->setText(msg);
         face_detect_flag = 1;
     }
@@ -776,9 +798,13 @@ void home_hotel::on_get_code_clicked() //获取验证码
     connect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(get_code_reply(QNetworkReply*))); //连接槽
 
     /*设置发送数据*/
-    char quest_array[256]="http://hotel.inteink.com/hotel/tenant/getNumber?telephone=";
+    char quest_array[256]={0};
     QNetworkRequest quest;
-    sprintf(quest_array,"%s%s",quest_array,ui->phone_number->text().toUtf8().data());
+    if(opt_code == CHECK_IN)//入住时获取验证码
+        sprintf(quest_array,"http://hotel.inteink.com/hotel/tenant/getNumber?telephone=%s",ui->phone_number->text().toUtf8().data());
+    else
+        sprintf(quest_array,"http://hotel.inteink.com/hotel/tenant/updateTelephone?inputTelephone=%s",ui->phone_number->text().toUtf8().data());
+
     qDebug("请求验证码--> URL:%s\n",quest_array);
     quest.setUrl(QUrl(quest_array));
     quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
@@ -833,10 +859,157 @@ void home_hotel::get_code_reply(QNetworkReply* reply)   //获取验证码响应
     qDebug()<<"释放公用http请求句柄..";
 }
 
-void home_hotel::get_room_info_reply(QNetworkReply *reply)
+void home_hotel::get_room_info_get_key_reply(QNetworkReply *reply) //获取房间信息（取钥匙）
 {
     QString all = reply->readAll();
-    qDebug()<<"获取房间信息响应-->"<<all;
+    qDebug()<<"获取房间信息响应(取钥匙)-->"<<all;
+    QJsonParseError err;
+    QJsonDocument json_recv = QJsonDocument::fromJson(all.toUtf8(),&err);
+    qDebug() << "error_code ="<<err.error;
+    if(!json_recv.isNull() && json_recv.isObject())
+    {
+        QJsonObject object = json_recv.object();
+        if(object.contains("house_name") && object.contains("house_number") &&
+           object.contains("startDate") && object.contains("endDate") &&
+           object.contains("telephone") && object.contains("bed_info"))
+        {
+            qDebug()<<"获取房间信息响应(取钥匙)成功";
+
+            QJsonValue house_name = object.value("house_name");
+            QJsonValue house_number = object.value("house_number");
+            QJsonValue startDate = object.value("startDate");
+            QJsonValue endDate = object.value("endDate");
+            QJsonValue telephone = object.value("telephone");
+            QJsonValue bed_info = object.value("bed_info");
+
+            QString room_type_and_number = house_name.toString() + "/" + house_number.toString();
+            ui->room_type_and_number->setText(room_type_and_number);
+            ui->user_info->setText(QString::fromLocal8Bit(card_info.name));
+            ui->tel_info->setText(telephone.toString());
+            QString date_info = startDate.toString() + "~" + endDate.toString();
+            ui->date_info->setText(date_info);
+            ui->bed_info->setText(bed_info.toString());
+
+            ui->room_info_bt1->setText("获取钥匙");
+            ui->room_info_bt2->setText("更改手机号");
+
+            ui->stackedWidget->setCurrentIndex(ROOM_INFO_PAGE);
+        }
+        else if(object.contains("ret_code") && object.contains("result"))
+        {
+            QJsonValue ret_code = object.value("ret_code");
+            int temp = ret_code.toInt();
+            if(temp == 400)
+            {
+                qDebug()<<"获取房间信息响应(取钥匙)失败";
+                QJsonValue help_msg = object.value("result");
+                ui->fail_help->setText(help_msg.toString());
+                ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
+            }
+            else
+            {
+                ui->fail_help->setText("获取住房信息失败,请联系管理员。");
+                ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
+            }
+
+        }
+        else
+        {
+            qDebug()<<"未包含指定字段!!";
+            ui->fail_help->setText("服务器数据有误,请联系管理员。");
+            ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
+        }
+    }else
+    {
+        qDebug()<<"Json格式有误!!";
+        ui->fail_help->setText("服务器数据有误,请联系管理员。");
+        ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
+    }
+
+    disconnect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(get_room_info_get_key_reply(QNetworkReply*))); //取消连接
+    delete common_manager;  //用完释放
+    common_manager = NULL;
+    qDebug()<<"释放公用http请求句柄..";
+}
+
+void home_hotel::get_room_info_check_out_reply(QNetworkReply *reply)
+{
+    QString all = reply->readAll();
+    qDebug()<<"获取房间信息响应(退房)-->"<<all;
+    QJsonParseError err;
+    QJsonDocument json_recv = QJsonDocument::fromJson(all.toUtf8(),&err);
+    qDebug() << "error_code ="<<err.error;
+    if(!json_recv.isNull() && json_recv.isObject())
+    {
+        QJsonObject object = json_recv.object();
+        if(object.contains("house_name") && object.contains("house_number") &&
+           object.contains("startDate") && object.contains("endDate") &&
+           object.contains("telephone") && object.contains("bed_info"))
+        {
+            qDebug()<<"获取房间信息响应(退房)成功";
+            QJsonValue house_name = object.value("house_name");
+            QJsonValue house_number = object.value("house_number");
+            QJsonValue startDate = object.value("startDate");
+            QJsonValue endDate = object.value("endDate");
+            QJsonValue telephone = object.value("telephone");
+            QJsonValue bed_info = object.value("bed_info");
+            QJsonValue house_ordernumber = object.value("house_ordernumber");
+
+            ordernumber = house_ordernumber.toString();
+            QString room_type_and_number = house_name.toString() + "/" + house_number.toString();
+            ui->room_type_and_number->setText(room_type_and_number);
+            ui->user_info->setText(QString::fromLocal8Bit(card_info.name));
+            ui->tel_info->setText(telephone.toString());
+            QString date_info = startDate.toString() + "~" + endDate.toString();
+            ui->date_info->setText(date_info);
+            ui->bed_info->setText(bed_info.toString());
+
+            ui->room_info_bt1->setText("取消");
+            ui->room_info_bt2->setText("确认退房");
+
+            ui->stackedWidget->setCurrentIndex(ROOM_INFO_PAGE);
+        }
+        else if(object.contains("ret_code") && object.contains("result"))
+        {
+            QJsonValue ret_code = object.value("ret_code");
+            int temp = ret_code.toInt();
+            if(temp == 400)
+            {
+                 qDebug()<<"获取房间信息响应(退房)失败";
+                QJsonValue help_msg = object.value("result");
+                ui->fail_help->setText(help_msg.toString());
+                ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
+            }
+            else
+            {
+                ui->fail_help->setText("获取住房信息失败,请联系管理员。");
+                ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
+            }
+
+        }
+        else
+        {
+            qDebug()<<"未包含指定字段!!";
+            ui->fail_help->setText("服务器数据有误,请联系管理员。");
+            ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
+        }
+    }else
+    {
+        qDebug()<<"Json格式有误!!";
+        ui->fail_help->setText("服务器数据有误,请联系管理员。");
+        ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
+    }
+
+    disconnect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(get_room_info_check_out_reply(QNetworkReply*))); //取消连接
+    delete common_manager;  //用完释放
+    common_manager = NULL;
+    qDebug()<<"释放公用http请求句柄..";
+}
+
+void home_hotel::get_key_reply(QNetworkReply *reply)
+{
+    QString all = reply->readAll();
+    qDebug()<<"获取钥匙响应-->"<<all;
     QJsonParseError err;
     QJsonDocument json_recv = QJsonDocument::fromJson(all.toUtf8(),&err);
     qDebug() << "error_code ="<<err.error;
@@ -849,16 +1022,23 @@ void home_hotel::get_room_info_reply(QNetworkReply *reply)
             int temp = ret_code.toInt();
             if(temp == 400)
             {
-                qDebug()<<"获取验证码失败";
+                qDebug()<<"获取钥匙失败";
                 QJsonValue help_msg = object.value("result");
                 ui->fail_help->setText(help_msg.toString());
                 ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
             }
+            else if(temp == 200)
+            {
+                qDebug()<<"获取钥匙成功";
+                QJsonValue help_msg = object.value("result");
+                ui->success_help->setText(help_msg.toString());
+                ui->stackedWidget->setCurrentIndex(CHECK_IN_SUCCESS);
+            }
             else
             {
-                identifying_code = QString::number(temp);
-                ui->phone_sign_help_msg->setText("验证码已发送至该手机");
-                qDebug()<<"获取验证码成功:"<<identifying_code;
+                qDebug()<<"ret_code 有误!!";
+                ui->fail_help->setText("服务器数据有误,请联系管理员。");
+                ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
             }
 
         }else
@@ -874,7 +1054,7 @@ void home_hotel::get_room_info_reply(QNetworkReply *reply)
         ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
     }
 
-    disconnect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(get_room_info_reply(QNetworkReply*))); //取消连接
+    disconnect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(get_key_reply(QNetworkReply*))); //取消连接
     delete common_manager;  //用完释放
     common_manager = NULL;
     qDebug()<<"释放公用http请求句柄..";
@@ -883,7 +1063,7 @@ void home_hotel::get_room_info_reply(QNetworkReply *reply)
 void home_hotel::check_out_reply(QNetworkReply *reply)
 {
     QString all = reply->readAll();
-    qDebug()<<"获取房间信息响应-->"<<all;
+    qDebug()<<"退房请求响应-->"<<all;
     QJsonParseError err;
     QJsonDocument json_recv = QJsonDocument::fromJson(all.toUtf8(),&err);
     qDebug() << "error_code ="<<err.error;
@@ -896,18 +1076,24 @@ void home_hotel::check_out_reply(QNetworkReply *reply)
             int temp = ret_code.toInt();
             if(temp == 400)
             {
-                qDebug()<<"获取验证码失败";
+                qDebug()<<"退房失败";
                 QJsonValue help_msg = object.value("result");
                 ui->fail_help->setText(help_msg.toString());
                 ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
             }
+            else if(temp == 200)
+            {
+                qDebug()<<"退房成功";
+                QJsonValue help_msg = object.value("result");
+                ui->success_help->setText(help_msg.toString());
+                ui->stackedWidget->setCurrentIndex(CHECK_IN_SUCCESS);
+            }
             else
             {
-                identifying_code = QString::number(temp);
-                ui->phone_sign_help_msg->setText("验证码已发送至该手机");
-                qDebug()<<"获取验证码成功:"<<identifying_code;
+                qDebug()<<"ret_code 有误!!";
+                ui->fail_help->setText("服务器数据有误,请联系管理员。");
+                ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
             }
-
         }else
         {
             qDebug()<<"未包含指定字段!!";
@@ -927,6 +1113,21 @@ void home_hotel::check_out_reply(QNetworkReply *reply)
     qDebug()<<"释放公用http请求句柄..";
 }
 
+
+void home_hotel::ensure_change_telphone() //确认更换手机
+{
+    common_manager = new QNetworkAccessManager(this); //身份信息上传请求
+    connect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(ensure_change_telphone_reply(QNetworkReply*))); //连接槽
+
+    /*设置发送数据*/
+    char quest_array[256]="http://hotel.inteink.com/hotel/wav/updateSendMessage";
+    QNetworkRequest quest;
+    sprintf(quest_array,"%s?telephone=%s&inputTelephone=%s",quest_array,ui->tel_info->text().toUtf8().data(),ui->phone_number->text().toUtf8().data());
+    qDebug("确认更改手机号码--> URL:%s\n",quest_array);
+    quest.setUrl(QUrl(quest_array));
+    quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
+    common_manager->get(quest);
+}
 void home_hotel::ensure_check_in() //确认登记入住
 {
     common_manager = new QNetworkAccessManager(this); //身份信息上传请求
@@ -940,14 +1141,15 @@ void home_hotel::ensure_check_in() //确认登记入住
     quest.setUrl(QUrl(quest_array));
     quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
     common_manager->get(quest);
+    //ui->phone_sign_help_msg->setText("登记中，请稍后");
 }
 
-void home_hotel::get_room_info()  //获取住房信息
+void home_hotel::get_room_info_get_key()  //获取住房信息(取钥匙)
 {
     common_manager = new QNetworkAccessManager(this);
-    connect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(get_room_info_reply(QNetworkReply*))); //连接槽
+    connect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(get_room_info_get_key_reply(QNetworkReply*))); //连接槽
 
-    QUrl qurl("http://hotel.inteink.com/hotel/wav/getSendMessage");
+    QUrl qurl("http://hotel.inteink.com/hotel/login/getVoiceInfo");
     QNetworkRequest request(qurl);
     request.setHeader(QNetworkRequest::ContentTypeHeader,QVariant("application/json"));
 
@@ -955,14 +1157,14 @@ void home_hotel::get_room_info()  //获取住房信息
     quest_array.append(QString::fromLocal8Bit(card_info.card_id).toUtf8());
     quest_array.append("\"}");
 
-    qDebug()<<"上传身份证信息---> URL:"<<qurl;
+    qDebug()<<"获取房间信息请求(取钥匙)---> URL:"<<qurl;
     common_manager->post(request,quest_array);
 }
 
-void home_hotel::check_out_request()
+void home_hotel::get_room_info_check_out()
 {
     common_manager = new QNetworkAccessManager(this);
-    connect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(check_out_reply(QNetworkReply*))); //连接槽
+    connect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(get_room_info_check_out_reply(QNetworkReply*))); //连接槽
 
     QUrl qurl("http://hotel.inteink.com/hotel/login/tenantCheckOutInfo");
     QNetworkRequest request(qurl);
@@ -972,8 +1174,40 @@ void home_hotel::check_out_request()
     quest_array.append(QString::fromLocal8Bit(card_info.card_id).toUtf8());
     quest_array.append("\"}");
 
-    qDebug()<<"上传身份证信息---> URL:"<<qurl;
+    qDebug()<<"获取房间信息请求(退房)---> URL:"<<qurl;
     common_manager->post(request,quest_array);
+}
+
+void home_hotel::get_key_request() //获取钥匙
+{
+    common_manager = new QNetworkAccessManager(this); //身份信息上传请求
+    connect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(get_key_reply(QNetworkReply*))); //连接槽
+
+    /*设置发送数据*/
+    char quest_array[256]="http://hotel.inteink.com/hotel/wav/getSendMessage";
+
+    QNetworkRequest quest;
+    sprintf(quest_array,"%s?telephone=%s",quest_array,ui->tel_info->text().toUtf8().data());
+    qDebug("获取钥匙请求--> URL:%s\n",quest_array);
+    quest.setUrl(QUrl(quest_array));
+    quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
+    common_manager->get(quest);
+}
+
+void home_hotel::check_out_request()  //请求退房
+{
+    common_manager = new QNetworkAccessManager(this); //身份信息上传请求
+    connect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(check_out_reply(QNetworkReply*))); //连接槽
+
+    /*设置发送数据*/
+    char quest_array[256]="http://hotel.inteink.com/hotel/tenant/tenantCheckOut";
+
+    QNetworkRequest quest;
+    sprintf(quest_array,"%s?house_ordernumber=%s",quest_array,ordernumber.toLocal8Bit().data());
+    qDebug("请求退房--> URL:%s\n",quest_array);
+    quest.setUrl(QUrl(quest_array));
+    quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
+    common_manager->get(quest);
 }
 
 void home_hotel::ensure_check_in_reply(QNetworkReply* reply) //确认登记入住
@@ -1025,11 +1259,82 @@ void home_hotel::ensure_check_in_reply(QNetworkReply* reply) //确认登记入�
     qDebug()<<"释放公用http请求句柄..";
 }
 
+void home_hotel::ensure_change_telphone_reply(QNetworkReply *reply)
+{
+    QString all = reply->readAll();
+    QString msg;
+    qDebug()<<"确认更改手机号码响应-->"<<all;
+    QJsonParseError err;
+    QJsonDocument json_recv = QJsonDocument::fromJson(all.toUtf8(),&err);
+    qDebug() << "error_code ="<<err.error;
+    if(!json_recv.isNull() && json_recv.isObject())
+    {
+        QJsonObject object = json_recv.object();
+        if(object.contains("house_ordernumber") && object.contains("result")) //成功
+        {
+            QJsonValue success_msg = object.value("result");
+            msg = success_msg.toString();
+            ui->success_help->setText(msg);
+            ui->stackedWidget->setCurrentIndex(CHECK_IN_SUCCESS);
+        }
+        else if(object.contains("ret_code") && object.contains("result"))
+        {
+            QJsonValue ret_code = object.value("ret_code");
+            int temp = ret_code.toInt();
+            if(temp == 400)
+            {
+                qDebug()<<"更换手机号码失败";
+                QJsonValue help_msg = object.value("result");
+                msg = help_msg.toString();
+                ui->fail_help->setText(msg);
+                ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
+            }
+            else if(temp == 200)
+            {
+                qDebug()<<"更换手机号码成功";
+                QJsonValue help_msg = object.value("result");
+                msg = help_msg.toString();
+                ui->success_help->setText(msg);
+                ui->stackedWidget->setCurrentIndex(CHECK_IN_SUCCESS);
+            }
+            else
+            {
+                ui->fail_help->setText("服务器数据有误,请联系管理员。");
+                ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
+            }
+        }
+        else
+        {
+            qDebug()<<"未包含指定字段!!";
+            ui->fail_help->setText("服务器数据有误,请联系管理员。");
+            ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
+        }
+    }else
+    {
+        qDebug()<<"Json格式有误!!";
+        ui->fail_help->setText("服务器数据有误,请联系管理员。");
+        ui->stackedWidget->setCurrentIndex(ASK_ERROR_PAGE);
+    }
+
+    disconnect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(ensure_change_telphone_reply(QNetworkReply*))); //取消连接
+    delete common_manager;  //用完释放
+    common_manager = NULL;
+    qDebug()<<"释放公用http请求句柄..";
+}
+
 void home_hotel::on_ensure_sign_clicked() //确认登记
 {
     if(ui->test_code->text() == identifying_code)
     {
-         ensure_check_in(); //确认入住
+        if(opt_code == CHECK_IN)
+        {
+            ensure_check_in(); //确认入住
+        }
+        else if(opt_code == GET_KEY)
+        {
+            ensure_change_telphone();//确认更改手机号
+        }
+
     }else
     {
         ui->phone_sign_help_msg->setText("验证码有误,请重新输入");
@@ -1075,6 +1380,20 @@ void home_hotel::on_exit_clicked()  //退出按钮
     if(camera->isOpened()) //如果视频已经打开则关闭视频
         close_camera();
 
+    if(focus_flag != -1)
+    {
+        focus_flag = -1;
+        ui->test_code->setText("请输入验证码");
+        ui->test_code->setStyleSheet("#test_code{color: rgb(184, 184, 184);"
+                                        "font: 75 16pt \"Microsoft YaHei UI Light\";"
+                                        "border-image: url(:/new/prefix1/pictures/输入文本框.png);}");
+
+        ui->phone_number->setText("请输入手机号");
+        ui->phone_number->setStyleSheet("#phone_number{color: rgb(184, 184, 184);"
+                                        "font: 75 16pt \"Microsoft YaHei UI Light\";"
+                                        "border-image: url(:/new/prefix1/pictures/输入文本框.png);}");
+    }
+
     ui->stackedWidget->setCurrentIndex(FIRST_PAGE);
 //-----------------用于预览界面-----------------
 //    int i = ui->stackedWidget->currentIndex();
@@ -1092,8 +1411,11 @@ void home_hotel::set_lineEdit_text(int opt_code) //显示输入字符
     qDebug()<<"set_lineEdit_text"<<" focus_flag="<<focus_flag<<" opt_code="<<opt_code;
     if(focus_flag == -1)
     {
-        ui->phone_number->clear();
         ui->phone_number->setFocus();
+        ui->phone_number->clear();
+        ui->phone_number->setStyleSheet("#phone_number{color: rgb(0,0,0);"
+                                        "font: 75 16pt \"Microsoft YaHei UI Light\";"
+                                        "border-image: url(:/new/prefix1/pictures/输入文本框.png);}");
         focus_flag = 0;
     }
     if(focus_flag == 0)
@@ -1272,10 +1594,15 @@ void home_hotel::on_num_9_clicked()     //按键9
 
 void home_hotel::on_stackedWidget_currentChanged(int arg1)
 {
-    if(arg1 == 0)
+    if(arg1 == FIRST_PAGE)  //首页面不显示退出按钮
         ui->exit->hide();
     else
         ui->exit->show();
+
+    if(opt_code == GET_KEY || opt_code == CHECK_OUT) //取钥匙和退房不显示增加人员按钮
+        ui->add_people->hide(); //隐藏增加人员按钮
+    else
+        ui->add_people->show(); //显示增加人员按钮
 }
 
 void home_hotel::on_success_finish_clicked()
@@ -1286,4 +1613,28 @@ void home_hotel::on_success_finish_clicked()
 void home_hotel::on_fail_finish_clicked()
 {
     on_exit_clicked();
+}
+
+void home_hotel::on_room_info_bt1_clicked()
+{
+    if(ui->room_info_bt1->text() == "获取钥匙")
+    {
+        get_key_request();
+    }
+    else if(ui->room_info_bt1->text() == "取消")
+    {
+        on_exit_clicked();
+    }
+}
+
+void home_hotel::on_room_info_bt2_clicked()
+{
+     if(ui->room_info_bt2->text() == "更改手机号")
+     {
+         ui->stackedWidget->setCurrentIndex(PHONENUMBER_SIGN);
+     }
+     else if(ui->room_info_bt2->text() == "确认退房")
+     {
+        check_out_request();
+     }
 }

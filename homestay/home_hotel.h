@@ -74,9 +74,13 @@ public:
     void compare_face();            //人脸比对请求
     void upload_info();             //上传身份证信息
     void upload_info_add_people();             //增加人员上传身份证信息
-    void ensure_check_in();         // 确认登记
-    void get_room_info();           //获取住房信息(取钥匙)
-    void check_out_request();           //获取住房信息(取钥匙)
+    void ensure_check_in();                    // 确认登记
+    void get_room_info_get_key();             //获取住房信息(取钥匙)
+    void get_room_info_check_out();           //获取住房信息(退房)
+    void get_key_request();                   //请求获取钥匙
+    void check_out_request();                  //请求退房
+
+    void ensure_change_telphone();              // 确认更换手机
 public slots:
     void update_time();
 
@@ -96,11 +100,18 @@ public slots:
 
     void get_code_reply(QNetworkReply *reply);
 
-    void get_room_info_reply(QNetworkReply *reply);  //获取住房信息回复
+    void get_room_info_get_key_reply(QNetworkReply *reply);  //获取住房信息回复(取钥匙)
 
-    void check_out_reply(); //退房回复
+    void get_room_info_check_out_reply(QNetworkReply *reply);  //获取住房信息回复(退房)
 
-    void ensure_check_in_reply(QNetworkReply *reply);
+    void get_key_reply(QNetworkReply *reply);   //获取钥匙回复
+
+    void check_out_reply(QNetworkReply *reply); //退房回复
+
+    void ensure_check_in_reply(QNetworkReply *reply);  //确认入住
+
+    void ensure_change_telphone_reply(QNetworkReply *reply); //确认更改手机
+
 private slots:
     void on_check_in_clicked();
 
@@ -147,6 +158,10 @@ private slots:
     void on_success_finish_clicked();
 
     void on_fail_finish_clicked();
+
+    void on_room_info_bt1_clicked();
+
+    void on_room_info_bt2_clicked();
 
 private:
     Ui::home_hotel *ui;

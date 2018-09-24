@@ -35,5 +35,7 @@
         <file>pictures/人.png</file>
         <file>pictures/日期.png</file>
         <file>pictures/早餐.png</file>
+        <file>pictures/手机.png</file>
+        <file>pictures/0.png</file>
     </qresource>
 </RCC>

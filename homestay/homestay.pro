@@ -28,5 +28,8 @@ INCLUDEPATH  += D:/Qt/opencv/build/install/include \
 
 LIBS += -L D:\Qt\opencv\build\install\x64\mingw\bin\libopencv_*.dll
 
+RC_FILE  = myico.rc
+
 RESOURCES += \
     picture.qrc
+
