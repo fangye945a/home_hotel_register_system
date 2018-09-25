@@ -25,8 +25,8 @@ home_hotel::home_hotel(QWidget *parent) :
     this->setPalette(palette);
     signal_slots_connect(); //连接信号与槽
     home_hotel_init();      //参数初始化
-    //this->setWindowFlags (Qt::Window | Qt::FramelessWindowHint);
-    this->showFullScreen();
+    this->setWindowFlags (Qt::Window | Qt::FramelessWindowHint);
+    //this->showFullScreen();
 }
 
 home_hotel::~home_hotel()
@@ -34,25 +34,46 @@ home_hotel::~home_hotel()
     delete ui;
 }
 
+void home_hotel::read_ini_file()  //读取配置文件
+{
+    if(!isFileExist(FILE_PATH)) //不存在则创建,使用默认参数
+    {
+        QSettings *writeIniFile = new QSettings(FILE_PATH, QSettings::IniFormat);
+        writeIniFile->setValue("/setting/dev_id","1");
+        writeIniFile->setValue("/setting/city",QString("宁波"));
+        writeIniFile->setValue("/setting/confidence_threshold","70");
+        writeIniFile->setValue("/setting/api_key",API_Key);
+        writeIniFile->setValue("/setting/secret_key",Secret_Key);
+        writeIniFile->setValue("/setting/compare_threshold","3"); //3次
+        delete writeIniFile;
+    }
+    QSettings *readIniFile = new QSettings(FILE_PATH, QSettings::IniFormat);
+    dev_id = readIniFile->value("/setting/dev_id").toString();
+    local_city = readIniFile->value("/setting/city").toString();
+    confidence_threshold = readIniFile->value("/setting/confidence_threshold").toString().toInt();
+    api_key = readIniFile->value("/setting/api_key").toString();
+    secret_key = readIniFile->value("/setting/secret_key").toString();
+    compare_threshold = readIniFile->value("/setting/compare_threshold").toString().toInt();
+    delete readIniFile;
+}
+
 
 void home_hotel::home_hotel_init()
 {
     face_compare_try_times = 0;
     face_detect_flag = 0;
-    local_city = "宁波";
-    api_key = API_Key;
-    secret_key = Secret_Key;
-    confidence_threshold = 70;
     ui->exit->hide();
     frame_data = new cv::Mat;
     camera = new cv::VideoCapture;
     ccf = new cv::CascadeClassifier;
+    q_image_data = new QImage;
+
     if(!ccf->load("./haarcascade_frontalface_default_2.4.9.xml")) //导入opencv自带检测的文件
        qDebug()<<"无法加载xml文件";
     else
        qDebug()<<"加载xml文件成功";
 
-    q_image_data = new QImage;
+    read_ini_file(); //读取配置文件
 
     time_timer->start(60*1000); //每分钟更新一次时间
     weather_timer->start(60*60*1000); //每小时更新一次天气
@@ -154,9 +175,9 @@ void home_hotel::face_compare_show() //人脸比较界面显示
     ui->id_pic->setPixmap(QPixmap::fromImage(scaleImage));
     ui->id_pic->setAlignment(Qt::AlignCenter);
     ui->id_pic->show();
-    ui->help_msg_page3->setText("身份证读取成功，请正视摄像头进行认证比对。");
+    ui->help_msg_page3->setText("身份证读取成功，请正视摄像头进行人证比对。");
     ui->stackedWidget->setCurrentIndex(FACE_COMPARE);
-    open_camera();
+    face_detect_flag = 1;
 }
 
 void home_hotel::open_camera() //打开摄像头
@@ -169,8 +190,6 @@ void home_hotel::open_camera() //打开摄像头
         ui->help_msg_page3->setText("摄像头打开失败!!");
     }
     frame_timer->start(camera_T); //开始读取视频
-    face_detect_flag = 1;
-
     //video_record_timer->start(5000); //录制5秒
 }
 void home_hotel::start_upload_video()
@@ -345,7 +364,7 @@ bool home_hotel::detectface(cv::Mat &image) //检测人脸
     cv::Mat gray;
     cv::cvtColor(image,gray,CV_BGR2GRAY);
     cv::equalizeHist(gray,gray);
-    ccf->detectMultiScale(gray,faces,1.1,3,0,cv::Size(200,200),cv::Size(400,400));
+    ccf->detectMultiScale(gray,faces,1.1,3,0,cv::Size(100,100),cv::Size(300,300));
 
     cv::Rect outline(120,40,400,400);
     cv::rectangle(image,outline,cv::Scalar(255,166,106),2,8);
@@ -413,11 +432,11 @@ void home_hotel::get_frame()    //获取一帧图像
         return;
     }
 
-    if(video_record_timer->isActive()) //如果开始录制视频则记录该视频
-    {
-        cv::Mat videoframe = frame_data->clone();
-        g_video_frame.append(videoframe);
-    }
+   // if(video_record_timer->isActive()) //如果开始录制视频则记录该视频
+   // {
+   //    cv::Mat videoframe = frame_data->clone();
+   //    g_video_frame.append(videoframe);
+   // }
 
     *q_image_data = Mat2QImage(*frame_data);  //Mat转化为QImage
     if(face_detect_flag && detectface(*frame_data))
@@ -454,6 +473,8 @@ void home_hotel::upload_info(char *authentication_flag) //上传身份证信息
     quest_array.append(pic_IDcard);
     quest_array.append("\",\"face_img\":\"");
     quest_array.append(pic_Live);
+    quest_array.append("\",\"id\":\"");
+    quest_array.append(dev_id.toUtf8());
     quest_array.append("\",\"authentication\":\"");
     quest_array.append(authentication_flag);
     quest_array.append("\",\"username\":\"");
@@ -604,17 +625,16 @@ void home_hotel::face_compare_result(QNetworkReply* reply)
                         {
                             face_detect_flag = 0;
                             upload_info("a");//上传身份证信息
+                            face_compare_try_times = 0;
                         }else
                         {
                             msg = "人证比对失败,请重试";
                             ui->help_msg_page3->setText(msg);
                             face_detect_flag = 1;
-                            if(face_compare_try_times > 3) //大于5次登记失败
+                            if(face_compare_try_times >= compare_threshold) //大于设置次数登记失败
                             {
                                 upload_info("b");//上传身份证信息
                                 face_detect_flag = 0;
-//                                close_camera();
-//                                ui->stackedWidget->setCurrentIndex(SIGN_FAIL_PAGE);
                                 face_compare_try_times = 0;
                             }
                             face_compare_try_times++;
@@ -679,6 +699,7 @@ void home_hotel::on_self_help_regist_clicked()
 {
     ui->stackedWidget->setCurrentIndex(CARD_DETECT);
     pthread_card->start();
+    open_camera();
 }
 
 void home_hotel::on_finish_clicked()

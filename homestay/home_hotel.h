@@ -19,6 +19,7 @@
 #include <QLabel>
 #include <QFileInfo>
 #include <QFile>
+#include <QSettings>
 #include <QImage>
 #include <QDateTime>
 #include <opencv2/core/core.hpp>
@@ -33,7 +34,7 @@
 #define camera_T 20  //20ms获取一次图像
 #define  API_Key       "2Z51fFjIkF1AM0ZTFwiZG0LI"
 #define  Secret_Key    "rxW2gMF4TnIAAoyqedO8jnTL4h08jZbE"
-
+#define  FILE_PATH      "./cfg.ini"
 enum {
       FIRST_PAGE=0, //首页面
       CARD_DETECT,  //身份证检测
@@ -53,6 +54,7 @@ class home_hotel : public QWidget
 public:
     explicit home_hotel(QWidget *parent = 0);
     ~home_hotel();
+    void read_ini_file();
     void home_hotel_init();         //参数初始化
     void signal_slots_connect();    //连接信号与槽
     void closeEvent(QCloseEvent *event);  //关闭事件
@@ -97,12 +99,14 @@ private slots:
 
 private:
     Ui::home_hotel *ui;
-    int face_detect_flag;           //人脸检测完成标志
-    int confidence_threshold;
+    int face_detect_flag;           //人脸检测完成标志 
     int face_compare_try_times;     //人脸比对失败次数
-    QString local_city;   //当前所在城市
 
     QString token;          //百度接口参数值
+    int confidence_threshold;
+    int compare_threshold; //人脸比对次数阈值
+    QString local_city;   //当前所在城市
+    QString dev_id;                     //设备ID
     QString api_key;
     QString secret_key;
 

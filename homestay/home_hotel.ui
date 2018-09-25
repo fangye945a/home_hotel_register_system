@@ -393,6 +393,12 @@ font: 75 17.3pt &quot;Microsoft JhengHei Light&quot;;</string>
                <widget class="QPushButton" name="self_help_regist">
                 <property name="minimumSize">
                  <size>
+                  <width>400</width>
+                  <height>292</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
                   <width>446</width>
                   <height>292</height>
                  </size>
@@ -721,7 +727,7 @@ font: 25 14pt &quot;Microsoft YaHei UI Light&quot;;</string>
                    </size>
                   </property>
                   <property name="styleSheet">
-                   <string notr="true">border-image: url(:/new/prefix1/pictures/证件背景.png);</string>
+                   <string notr="true"/>
                   </property>
                   <property name="text">
                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;证件照&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -832,7 +838,7 @@ font: 25 14pt &quot;Microsoft YaHei UI Light&quot;;</string>
                    </size>
                   </property>
                   <property name="styleSheet">
-                   <string notr="true">border-image: url(:/new/prefix1/pictures/视频背景.png);</string>
+                   <string notr="true"/>
                   </property>
                   <property name="text">
                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;视频加载中...&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
