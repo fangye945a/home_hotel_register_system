@@ -17,6 +17,7 @@
 #include <QTextCodec>
 #include <QBuffer>
 #include <QLabel>
+#include <QSettings>
 #include <QFileInfo>
 #include <QFile>
 #include <QImage>
@@ -28,9 +29,9 @@
 #include "detect_card_pthread.h"
 
 #define camera_T 20  //20ms获取一次图像
-#define  API_Key       "2Z51fFjIkF1AM0ZTFwiZG0LI"
-#define  Secret_Key    "rxW2gMF4TnIAAoyqedO8jnTL4h08jZbE"
-
+#define  API_Key       "6SUZQHmrbhK3f6Rfk799AN5C"
+#define  Secret_Key    "LAc7GQf5eqstueUHbqND9tPgOaminD0e"
+#define  FILE_PATH      "./cfg.ini"
 enum {
       FIRST_PAGE=0, //首页面
       CARD_DETECT,  //身份证检测
@@ -60,6 +61,7 @@ public:
     explicit home_hotel(QWidget *parent = 0);
     ~home_hotel();
     bool eventFilter(QObject *obj, QEvent *event);
+    void read_ini_file();           //读取配置文件
     void home_hotel_init();         //参数初始化
     void signal_slots_connect();    //连接信号与槽
     void closeEvent(QCloseEvent *event);  //关闭事件
@@ -79,7 +81,6 @@ public:
     void get_room_info_check_out();           //获取住房信息(退房)
     void get_key_request();                   //请求获取钥匙
     void check_out_request();                  //请求退房
-
     void ensure_change_telphone();              // 确认更换手机
 public slots:
     void update_time();
@@ -98,7 +99,9 @@ public slots:
 
     void upload_info_add_people_result(QNetworkReply *reply); //添加同住人员
 
-    void get_code_reply(QNetworkReply *reply);
+    void get_code_reply(QNetworkReply *reply); //获取验证码响应
+
+    void get_code_timeout();  //获取验证码计时
 
     void get_room_info_get_key_reply(QNetworkReply *reply);  //获取住房信息回复(取钥匙)
 
@@ -168,8 +171,9 @@ private:
     int focus_flag;   //-1 无焦点 0 电话号码  1 验证码
     int face_detect_flag;           //是否进行人脸识别标志
     int confidence_threshold;      //人脸比对置信度阈值
-
+    int compare_threshold;      //比对失败次数阈值
     int opt_code;       //操作码
+    int get_code_timer_count;
 
     QString identifying_code;           //验证码
     QString ordernumber;                //订单号
@@ -182,6 +186,7 @@ private:
     QTimer *time_timer;            //时间定时器
     QTimer *weather_timer;         //天气定时器
     QTimer *frame_timer;           //视频帧获取定时器
+    QTimer *common_timer;           //视频帧获取定时器
 
     QNetworkAccessManager *face_compare_manager;    //人脸比较
     QNetworkAccessManager *weather_manager;         //天气请求

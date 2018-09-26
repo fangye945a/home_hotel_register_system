@@ -620,7 +620,7 @@ border-image: url(:/new/prefix1/pictures/广告位.png);
 font: 25 17.72pt &quot;Microsoft YaHei UI Light&quot;;</string>
                 </property>
                 <property name="text">
-                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;请将二代身份证放置在下方识别区域&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;请将二代身份证放置在右侧识别区域&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                 </property>
                </widget>
               </item>
@@ -865,7 +865,7 @@ font: 25 14pt &quot;Microsoft YaHei UI Light&quot;;</string>
                    </size>
                   </property>
                   <property name="styleSheet">
-                   <string notr="true">border-image: url(:/new/prefix1/pictures/证件背景.png);</string>
+                   <string notr="true"/>
                   </property>
                   <property name="text">
                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;证件照&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -976,7 +976,7 @@ font: 25 14pt &quot;Microsoft YaHei UI Light&quot;;</string>
                    </size>
                   </property>
                   <property name="styleSheet">
-                   <string notr="true">border-image: url(:/new/prefix1/pictures/视频背景.png);</string>
+                   <string notr="true"/>
                   </property>
                   <property name="text">
                    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;视频加载中...&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -1246,12 +1246,13 @@ font: 25 17.72pt &quot;Microsoft YaHei UI Light&quot;;</string>
                      </size>
                     </property>
                     <property name="styleSheet">
-                     <string notr="true">QPushButton:enabled
+                     <string notr="true">#get_code:enabled
 {
 	color: rgb(255, 255, 255);
 	font: 75 12pt &quot;Microsoft YaHei UI Light&quot;;
 	border-image: url(:/new/prefix1/pictures/获取验证码.png);
-}</string>
+}
+</string>
                     </property>
                     <property name="text">
                      <string>获取验证码</string>
@@ -1813,7 +1814,7 @@ font: 25 17.72pt &quot;Microsoft YaHei UI Light&quot;;</string>
 font: 75 12pt &quot;Microsoft YaHei UI Light&quot;;</string>
                 </property>
                 <property name="text">
-                 <string>一间房间一天仅可获取三次钥匙</string>
+                 <string>*一个手机号一天最多获取三次秘钥</string>
                 </property>
                </widget>
               </item>
@@ -2016,7 +2017,7 @@ font: 25 16pt &quot;Microsoft YaHei UI Light&quot;;</string>
              </spacer>
             </item>
             <item>
-             <layout class="QHBoxLayout" name="horizontalLayout_16" stretch="8,2,1,0,8">
+             <layout class="QHBoxLayout" name="horizontalLayout_16" stretch="8,2,0,0,8">
               <item>
                <spacer name="horizontalSpacer_29">
                 <property name="orientation">
@@ -2907,13 +2908,13 @@ font: 25 16pt &quot;Microsoft YaHei UI Light&quot;;</string>
                </spacer>
               </item>
               <item>
-               <widget class="QLabel" name="success_msg_2">
+               <widget class="QLabel" name="room_info_help_msg">
                 <property name="styleSheet">
                  <string notr="true">color: rgb(255, 0, 0);
 font: 75 12pt &quot;Microsoft YaHei UI Light&quot;;</string>
                 </property>
                 <property name="text">
-                 <string>*一个手机号一天最多获取三次验证码</string>
+                 <string>*一个手机号一天最多获取三次秘钥</string>
                 </property>
                 <property name="alignment">
                  <set>Qt::AlignCenter</set>

@@ -2,7 +2,7 @@
 #include "ui_home_hotel.h"
 
 QList<cv::Mat> g_video_frame; //全局视频录制画面
-QString hotel_id;     //酒店ID
+QString dev_id;     //酒店ID
 
 extern CARD_INFO card_info; //身份证信息
 
@@ -84,18 +84,37 @@ bool home_hotel::eventFilter(QObject *obj, QEvent *event)
     return QWidget::eventFilter(obj,event);
 }
 
+void home_hotel::read_ini_file()
+{
+    if(!isFileExist(FILE_PATH)) //不存在则创建,使用默认参数
+    {
+        QSettings *writeIniFile = new QSettings(FILE_PATH, QSettings::IniFormat);
+        writeIniFile->setValue("/setting/dev_id","1");
+        writeIniFile->setValue("/setting/city",QString("宁波"));
+        writeIniFile->setValue("/setting/confidence_threshold","70");
+        writeIniFile->setValue("/setting/api_key",API_Key);
+        writeIniFile->setValue("/setting/secret_key",Secret_Key);
+        writeIniFile->setValue("/setting/compare_threshold","3"); //3次
+        delete writeIniFile;
+    }
+    QSettings *readIniFile = new QSettings(FILE_PATH, QSettings::IniFormat);
+    dev_id = readIniFile->value("/setting/dev_id").toString();
+    local_city = readIniFile->value("/setting/city").toString();
+    confidence_threshold = readIniFile->value("/setting/confidence_threshold").toString().toInt();
+    api_key = readIniFile->value("/setting/api_key").toString();
+    secret_key = readIniFile->value("/setting/secret_key").toString();
+    compare_threshold = readIniFile->value("/setting/compare_threshold").toString().toInt();
+    delete readIniFile;
+}
+
 void home_hotel::home_hotel_init()
 {
     focus_flag = -1;
-    local_city = "宁波";
-    api_key = API_Key;
-    secret_key = Secret_Key;
-    confidence_threshold = 70;
-    hotel_id = "1";
     opt_code = -1;
     identifying_code.clear();
     ui->exit->hide();
 
+    common_timer = NULL;
     frame_data = new cv::Mat;
     camera = new cv::VideoCapture;
     ccf = new cv::CascadeClassifier;
@@ -113,12 +132,11 @@ void home_hotel::home_hotel_init()
         else
            qDebug()<<"加载xml文件成功";
     }
-
-
     q_image_data = new QImage;
-
     time_timer->start(60*1000); //每分钟更新一次时间
     weather_timer->start(60*60*1000); //每小时更新一次天气
+
+    read_ini_file();    //读取配置文件
     weather_inquiry();  //获取天气
     update_time();  //更新时间
 }
@@ -377,7 +395,7 @@ bool home_hotel::detectface(cv::Mat &image) //检测人脸
     cv::Mat gray;
     cv::cvtColor(image,gray,CV_BGR2GRAY);
     cv::equalizeHist(gray,gray);
-    ccf->detectMultiScale(gray,faces,1.1,3,0,cv::Size(200,200),cv::Size(400,400));
+    ccf->detectMultiScale(gray,faces,1.1,3,0,cv::Size(100,100),cv::Size(300,300));
 
     cv::Rect outline(120,40,400,400);
     cv::rectangle(image,outline,cv::Scalar(255,166,106),2,8);
@@ -485,7 +503,7 @@ void home_hotel::upload_info() //上传身份证信息
     quest_array.append(pic_Live);
     //quest_array.append("pic_Live");
     quest_array.append("\",\"id\":\"");
-    quest_array.append(hotel_id.toUtf8());
+    quest_array.append(dev_id.toUtf8());
     quest_array.append("\",\"username\":\"");
     quest_array.append(QString::fromLocal8Bit(card_info.name).toUtf8());
 
@@ -526,6 +544,7 @@ void home_hotel::upload_info_result(QNetworkReply* reply) //上传身份证信�
             ordernumber = room_ordernumber.toString();
             QJsonValue help_msg = object.value("result");
             ui->success_help->setText(help_msg.toString());
+            ui->success_msg->setText("*房间人数不得超过2人");
             ui->stackedWidget->setCurrentIndex(CHECK_IN_SUCCESS);
         }
         else if(object.contains("ret_code") && object.contains("result"))
@@ -585,7 +604,7 @@ void home_hotel::upload_info_add_people()
     request.setHeader(QNetworkRequest::ContentTypeHeader,QVariant("application/json"));
 
     QByteArray quest_array("{\"id\":");
-    quest_array.append(hotel_id.toUtf8());
+    quest_array.append(dev_id.toUtf8());
 
     quest_array.append(",\"card_img\":\"");
     quest_array.append(pic_IDcard);
@@ -635,6 +654,7 @@ void home_hotel::upload_info_add_people_result(QNetworkReply *reply)
                     qDebug()<<"添加人员成功";
                     QJsonValue help_msg = object.value("result");
                     ui->success_help->setText(help_msg.toString());
+                    ui->success_msg->setText("*房间人数不得超过2人");
                     ui->stackedWidget->setCurrentIndex(CHECK_IN_SUCCESS);
                 }break;
                 case 400:
@@ -669,6 +689,7 @@ void home_hotel::upload_info_add_people_result(QNetworkReply *reply)
 
 void home_hotel::face_compare_result(QNetworkReply* reply)
 {
+    static int times_cnt = 0;
     qDebug()<<"获得人脸比对结果!!";
     QTextCodec *codec = QTextCodec::codecForName("utf8");
     QString Receive_http = codec->toUnicode(reply->readAll());
@@ -740,6 +761,7 @@ void home_hotel::face_compare_result(QNetworkReply* reply)
                         if(result_score > confidence_threshold)
                         {
                             msg = "人证比对通过,请稍后";
+                            times_cnt = 0;
                             ui->help_msg_page3->setText(msg);
                             face_detect_flag = 0;
                             switch(opt_code)
@@ -763,9 +785,20 @@ void home_hotel::face_compare_result(QNetworkReply* reply)
                             }
                         }else
                         {
-                            msg = "人证比对不一致，请重试";
-                            ui->help_msg_page3->setText(msg);
-                            face_detect_flag = 1;
+
+                            if(times_cnt < compare_threshold)
+                            {
+                                msg = "人证比对不一致，请重试";
+                                ui->help_msg_page3->setText(msg);
+                                face_detect_flag = 1;
+                                times_cnt++;
+                            }
+                            else      //比对错误超过3次,返回首界面
+                            {
+                                times_cnt = 0;
+                                face_detect_flag = 0;
+                                on_exit_clicked();
+                            }
                         }
                     }
                 }
@@ -794,6 +827,12 @@ void home_hotel::face_compare_result(QNetworkReply* reply)
 
 void home_hotel::on_get_code_clicked() //获取验证码
 {
+    if(ui->phone_number->text().length() != 11)
+    {
+        ui->phone_sign_help_msg->setText("*手机号码长度必须为11位");
+        return;
+    }
+
     common_manager = new QNetworkAccessManager(this); //身份信息上传请求
     connect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(get_code_reply(QNetworkReply*))); //连接槽
 
@@ -809,6 +848,16 @@ void home_hotel::on_get_code_clicked() //获取验证码
     quest.setUrl(QUrl(quest_array));
     quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
     common_manager->get(quest);
+    ui->get_code->setEnabled(false);
+
+    common_timer = new QTimer(this);
+    connect(common_timer,SIGNAL(timeout()),this,SLOT(get_code_timeout()));
+    common_timer->start(1000);
+    get_code_timer_count = 0;
+    QString time_display = QString::number(60-get_code_timer_count) + "s";
+    ui->get_code->setText(time_display);
+    focus_flag = 1;
+
 }
 
 void home_hotel::get_code_reply(QNetworkReply* reply)   //获取验证码响应
@@ -857,6 +906,24 @@ void home_hotel::get_code_reply(QNetworkReply* reply)   //获取验证码响应
     delete common_manager;  //用完释放
     common_manager = NULL;
     qDebug()<<"释放公用http请求句柄..";
+}
+
+void home_hotel::get_code_timeout()
+{
+    get_code_timer_count++;
+    if(get_code_timer_count == 60)
+    {
+        ui->get_code->setText("获取验证码");
+        ui->get_code->setEnabled(true);
+        common_timer->stop();
+        disconnect(common_timer,SIGNAL(timeout()),this,SLOT(get_code_timeout()));
+        delete common_timer;
+        common_timer = NULL;
+    }else
+    {
+        QString time_display = QString::number(60-get_code_timer_count) + "s";
+        ui->get_code->setText(time_display);
+    }
 }
 
 void home_hotel::get_room_info_get_key_reply(QNetworkReply *reply) //获取房间信息（取钥匙）
@@ -1032,6 +1099,7 @@ void home_hotel::get_key_reply(QNetworkReply *reply)
                 qDebug()<<"获取钥匙成功";
                 QJsonValue help_msg = object.value("result");
                 ui->success_help->setText(help_msg.toString());
+                ui->success_msg->setText("*一个手机号一天最多获取3次秘钥");
                 ui->stackedWidget->setCurrentIndex(CHECK_IN_SUCCESS);
             }
             else
@@ -1086,6 +1154,7 @@ void home_hotel::check_out_reply(QNetworkReply *reply)
                 qDebug()<<"退房成功";
                 QJsonValue help_msg = object.value("result");
                 ui->success_help->setText(help_msg.toString());
+                ui->success_msg->clear();
                 ui->stackedWidget->setCurrentIndex(CHECK_IN_SUCCESS);
             }
             else
@@ -1141,7 +1210,7 @@ void home_hotel::ensure_check_in() //确认登记入住
     quest.setUrl(QUrl(quest_array));
     quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
     common_manager->get(quest);
-    //ui->phone_sign_help_msg->setText("登记中，请稍后");
+    ui->phone_sign_help_msg->setText("登记中，请稍后..");
 }
 
 void home_hotel::get_room_info_get_key()  //获取住房信息(取钥匙)
@@ -1335,10 +1404,23 @@ void home_hotel::on_ensure_sign_clicked() //确认登记
             ensure_change_telphone();//确认更改手机号
         }
 
-    }else
-    {
-        ui->phone_sign_help_msg->setText("验证码有误,请重新输入");
+        if(common_timer->isActive())//比对通过关闭定时器
+        {
+
+            qDebug()<<"-------------delete common_timer";
+            common_timer->stop();
+            disconnect(common_timer,SIGNAL(timeout()),this,SLOT(get_code_timeout()));
+            delete common_timer;
+            common_timer = NULL;
+        }
     }
+    else
+    {
+        if(ui->test_code->text().length() != 6)
+            ui->phone_sign_help_msg->setText("*验证码长度必须为6位");
+        else
+            ui->phone_sign_help_msg->setText("*验证码有误,请重新输入");
+    } 
 }
 
 void home_hotel::on_add_people_clicked() //增加人员
@@ -1361,6 +1443,7 @@ void home_hotel::on_get_the_key_clicked() //取钥匙
     opt_code = GET_KEY;
     ui->stackedWidget->setCurrentIndex(CARD_DETECT);
     pthread_card->start();
+    ui->room_info_help_msg->setText("*一个手机号一天最多获取三次秘钥");
 }
 
 void home_hotel::on_check_out_clicked() //退房
@@ -1368,6 +1451,7 @@ void home_hotel::on_check_out_clicked() //退房
     opt_code = CHECK_OUT;
     ui->stackedWidget->setCurrentIndex(CARD_DETECT);
     pthread_card->start();
+    ui->room_info_help_msg->setText("*退房后将无法打开房门，提前退房请主动联系房东结算费用");
 }
 
 void home_hotel::on_exit_clicked()  //退出按钮
@@ -1377,11 +1461,15 @@ void home_hotel::on_exit_clicked()  //退出按钮
         pthread_card->stop();
         pthread_card->wait();
     }
+
     if(camera->isOpened()) //如果视频已经打开则关闭视频
-        close_camera();
+    {
+         close_camera();
+    }
 
     if(focus_flag != -1)
     {
+        qDebug()<<"focus_flag = -1";
         focus_flag = -1;
         ui->test_code->setText("请输入验证码");
         ui->test_code->setStyleSheet("#test_code{color: rgb(184, 184, 184);"
@@ -1393,7 +1481,15 @@ void home_hotel::on_exit_clicked()  //退出按钮
                                         "font: 75 16pt \"Microsoft YaHei UI Light\";"
                                         "border-image: url(:/new/prefix1/pictures/输入文本框.png);}");
     }
+    if(common_timer != NULL  &&  common_timer->isActive())
+    {
 
+        qDebug()<<"-------------delete common_timer";
+        common_timer->stop();
+        disconnect(common_timer,SIGNAL(timeout()),this,SLOT(get_code_timeout()));
+        delete common_timer;
+        common_timer = NULL;
+    }
     ui->stackedWidget->setCurrentIndex(FIRST_PAGE);
 //-----------------用于预览界面-----------------
 //    int i = ui->stackedWidget->currentIndex();
@@ -1476,6 +1572,15 @@ void home_hotel::set_lineEdit_text(int opt_code) //显示输入字符
     }
     else if(focus_flag == 1)
     {
+        if( ui->test_code->text() == "请输入验证码")
+        {
+            ui->test_code->setFocus();
+            ui->test_code->clear();
+            ui->test_code->setStyleSheet("#test_code{color: rgb(0,0,0);"
+                                            "font: 75 16pt \"Microsoft YaHei UI Light\";"
+                                            "border-image: url(:/new/prefix1/pictures/输入文本框.png);}");
+        }
+
         QString msg = ui->test_code->text();
         switch (opt_code)
         {
@@ -1600,9 +1705,21 @@ void home_hotel::on_stackedWidget_currentChanged(int arg1)
         ui->exit->show();
 
     if(opt_code == GET_KEY || opt_code == CHECK_OUT) //取钥匙和退房不显示增加人员按钮
+    {
+        ui->horizontalSpacer_28->changeSize(0,0, QSizePolicy::Expanding);
         ui->add_people->hide(); //隐藏增加人员按钮
+    }
     else
+    {
+        ui->horizontalSpacer_28->changeSize(40, 20, QSizePolicy::Expanding);
         ui->add_people->show(); //显示增加人员按钮
+    }
+
+    if(arg1 == PHONENUMBER_SIGN)
+    {
+        ui->get_code->setText("获取验证码");
+        ui->get_code->setEnabled(true);
+    }
 }
 
 void home_hotel::on_success_finish_clicked()
