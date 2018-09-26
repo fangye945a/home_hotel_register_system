@@ -79,8 +79,6 @@ void home_hotel::home_hotel_init()
     weather_timer->start(60*60*1000); //每小时更新一次天气
     weather_inquiry();  //获取天气
     update_time();  //更新时间
-    request_token(); //请求token值
-
 }
 
 void home_hotel::signal_slots_connect()

@@ -497,7 +497,7 @@ border-image: url(:/new/prefix1/pictures/自助登记.png);
 font: 25 17.72pt &quot;Microsoft YaHei UI Light&quot;;</string>
               </property>
               <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;请将二代身份证放置在下方识别区域&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;请将二代身份证放置在右侧识别区域&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
             </item>
