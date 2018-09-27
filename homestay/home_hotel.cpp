@@ -45,6 +45,7 @@ void home_hotel::read_ini_file()  //读取配置文件
         writeIniFile->setValue("/setting/api_key",API_Key);
         writeIniFile->setValue("/setting/secret_key",Secret_Key);
         writeIniFile->setValue("/setting/compare_threshold","3"); //3次
+        writeIniFile->setValue("/setting/shelving_time","60000"); //一分钟
         delete writeIniFile;
     }
     QSettings *readIniFile = new QSettings(FILE_PATH, QSettings::IniFormat);
@@ -54,6 +55,7 @@ void home_hotel::read_ini_file()  //读取配置文件
     api_key = readIniFile->value("/setting/api_key").toString();
     secret_key = readIniFile->value("/setting/secret_key").toString();
     compare_threshold = readIniFile->value("/setting/compare_threshold").toString().toInt();
+    shelving_time = readIniFile->value("/setting/shelving_time").toString().toInt();
     delete readIniFile;
 }
 
@@ -63,6 +65,8 @@ void home_hotel::home_hotel_init()
     face_compare_try_times = 0;
     face_detect_flag = 0;
     ui->exit->hide();
+
+    page_shelving_timer = NULL;
     frame_data = new cv::Mat;
     camera = new cv::VideoCapture;
     ccf = new cv::CascadeClassifier;
@@ -124,6 +128,12 @@ void home_hotel::print_log(QString &log,int flag) //保存日志
     }
 
 }
+
+void home_hotel::page_shelving_timeout()
+{
+    on_exit_clicked();
+}
+
 void home_hotel::closeEvent(QCloseEvent *event)  //关闭前退出线程
 {
     if(pthread_card->isRunning())    //退出前先关闭线程
@@ -687,10 +697,37 @@ void home_hotel::on_exit_clicked()  //退出按钮
 
 void home_hotel::on_stackedWidget_currentChanged(int arg1)
 {
-    if(arg1 == 0)
+    if(arg1 == FIRST_PAGE)
+    {
         ui->exit->hide();
+        if(page_shelving_timer != NULL && page_shelving_timer->isActive()) //如果正在定时中
+        {
+            page_shelving_timer->stop();
+            disconnect(page_shelving_timer,SIGNAL(timeout()),this,SLOT(page_shelving_timeout()));
+            delete page_shelving_timer;
+            page_shelving_timer = NULL;
+            qDebug()<<"关闭页面搁置定时..";
+        }
+    }
     else
+    {
         ui->exit->show();
+        if(page_shelving_timer != NULL && page_shelving_timer->isActive()) //如果正在定时中
+        {
+            page_shelving_timer->stop();
+            page_shelving_timer->start(shelving_time);  //重新开始定时
+            qDebug()<<"关闭页面搁置定时..";
+            qDebug()<<"开启页面搁置定时..";
+        }
+        else
+        {
+            page_shelving_timer = new QTimer(this);
+            connect(page_shelving_timer,SIGNAL(timeout()),this,SLOT(page_shelving_timeout()));
+            qDebug()<<"开启页面搁置定时..";
+            page_shelving_timer->start(shelving_time);
+        }
+
+    }
 }
 
 void home_hotel::on_self_help_regist_clicked()

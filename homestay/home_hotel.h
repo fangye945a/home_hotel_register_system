@@ -32,6 +32,7 @@
 
 
 #define camera_T 20  //20ms获取一次图像
+#define SHELVING_TIME  120000 //页面搁置时间
 #define  API_Key       "2Z51fFjIkF1AM0ZTFwiZG0LI"
 #define  Secret_Key    "rxW2gMF4TnIAAoyqedO8jnTL4h08jZbE"
 #define  FILE_PATH      "./cfg.ini"
@@ -70,6 +71,8 @@ public:
     void upload_info(char *authentication_flag);             //上传身份证信息
     void print_log(QString &log, int flag=0);//打印日志
 public slots:
+    void page_shelving_timeout();  //页面搁置超时
+
     void update_time();
 
     void weather_inquiry(); //请求天气
@@ -105,11 +108,13 @@ private:
     QString token;          //百度接口参数值
     int confidence_threshold;
     int compare_threshold; //人脸比对次数阈值
+    int shelving_time;      //页面搁置超时时间
     QString local_city;   //当前所在城市
     QString dev_id;                     //设备ID
     QString api_key;
     QString secret_key;
 
+    QTimer *page_shelving_timer;   //页面搁置定时器
     QTimer *time_timer;            //时间定时器
     QTimer *weather_timer;         //天气定时器
     QTimer *frame_timer;
