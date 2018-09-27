@@ -83,7 +83,10 @@ public:
     void check_out_request();                  //请求退房
     void ensure_change_telphone();              // 确认更换手机
 public slots:
-    void update_time();
+
+    void page_shelving_timeout();  //页面搁置超时
+
+    void update_time();     //更新时间显示
 
     void weather_inquiry(); //请求天气
 
@@ -172,6 +175,7 @@ private:
     int face_detect_flag;           //是否进行人脸识别标志
     int confidence_threshold;      //人脸比对置信度阈值
     int compare_threshold;      //比对失败次数阈值
+    int shelving_time;      //页面搁置超时时间
     int opt_code;       //操作码
     int get_code_timer_count;
 
@@ -186,7 +190,8 @@ private:
     QTimer *time_timer;            //时间定时器
     QTimer *weather_timer;         //天气定时器
     QTimer *frame_timer;           //视频帧获取定时器
-    QTimer *common_timer;           //视频帧获取定时器
+    QTimer *get_code_timer;        //验证码获取定时器
+    QTimer *page_shelving_timer;   //页面搁置定时器
 
     QNetworkAccessManager *face_compare_manager;    //人脸比较
     QNetworkAccessManager *weather_manager;         //天气请求

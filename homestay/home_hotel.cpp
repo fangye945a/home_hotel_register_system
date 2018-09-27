@@ -95,6 +95,7 @@ void home_hotel::read_ini_file()
         writeIniFile->setValue("/setting/api_key",API_Key);
         writeIniFile->setValue("/setting/secret_key",Secret_Key);
         writeIniFile->setValue("/setting/compare_threshold","3"); //3次
+        writeIniFile->setValue("/setting/shelving_time","60000");
         delete writeIniFile;
     }
     QSettings *readIniFile = new QSettings(FILE_PATH, QSettings::IniFormat);
@@ -104,6 +105,7 @@ void home_hotel::read_ini_file()
     api_key = readIniFile->value("/setting/api_key").toString();
     secret_key = readIniFile->value("/setting/secret_key").toString();
     compare_threshold = readIniFile->value("/setting/compare_threshold").toString().toInt();
+    shelving_time = readIniFile->value("/setting/shelving_time").toString().toInt();
     delete readIniFile;
 }
 
@@ -114,7 +116,8 @@ void home_hotel::home_hotel_init()
     identifying_code.clear();
     ui->exit->hide();
 
-    common_timer = NULL;
+    get_code_timer = NULL;
+    page_shelving_timer = NULL;
     frame_data = new cv::Mat;
     camera = new cv::VideoCapture;
     ccf = new cv::CascadeClassifier;
@@ -833,6 +836,22 @@ void home_hotel::on_get_code_clicked() //获取验证码
         return;
     }
 
+    if(page_shelving_timer != NULL && page_shelving_timer->isActive()) //如果正在定时中
+    {
+        page_shelving_timer->stop();
+        page_shelving_timer->start(shelving_time+60000);  //获取验证码后可多加60s定时延时
+        qDebug()<<"关闭页面搁置定时..";
+        qDebug()<<"开启页面搁置定时..";
+    }
+    else
+    {
+        page_shelving_timer = new QTimer(this);
+        connect(page_shelving_timer,SIGNAL(timeout()),this,SLOT(page_shelving_timeout()));
+        qDebug()<<"开启页面搁置定时..";
+        page_shelving_timer->start(shelving_time+60000);  //重新开始定时
+    }
+
+
     common_manager = new QNetworkAccessManager(this); //身份信息上传请求
     connect(common_manager,SIGNAL(finished(QNetworkReply*)),this,SLOT(get_code_reply(QNetworkReply*))); //连接槽
 
@@ -850,9 +869,9 @@ void home_hotel::on_get_code_clicked() //获取验证码
     common_manager->get(quest);
     ui->get_code->setEnabled(false);
 
-    common_timer = new QTimer(this);
-    connect(common_timer,SIGNAL(timeout()),this,SLOT(get_code_timeout()));
-    common_timer->start(1000);
+    get_code_timer = new QTimer(this);
+    connect(get_code_timer,SIGNAL(timeout()),this,SLOT(get_code_timeout()));
+    get_code_timer->start(1000);
     get_code_timer_count = 0;
     QString time_display = QString::number(60-get_code_timer_count) + "s";
     ui->get_code->setText(time_display);
@@ -915,10 +934,10 @@ void home_hotel::get_code_timeout()
     {
         ui->get_code->setText("获取验证码");
         ui->get_code->setEnabled(true);
-        common_timer->stop();
-        disconnect(common_timer,SIGNAL(timeout()),this,SLOT(get_code_timeout()));
-        delete common_timer;
-        common_timer = NULL;
+        get_code_timer->stop();
+        disconnect(get_code_timer,SIGNAL(timeout()),this,SLOT(get_code_timeout()));
+        delete get_code_timer;
+        get_code_timer = NULL;
     }else
     {
         QString time_display = QString::number(60-get_code_timer_count) + "s";
@@ -1197,6 +1216,12 @@ void home_hotel::ensure_change_telphone() //确认更换手机
     quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
     common_manager->get(quest);
 }
+
+void home_hotel::page_shelving_timeout()
+{
+     on_exit_clicked();
+}
+
 void home_hotel::ensure_check_in() //确认登记入住
 {
     common_manager = new QNetworkAccessManager(this); //身份信息上传请求
@@ -1404,14 +1429,14 @@ void home_hotel::on_ensure_sign_clicked() //确认登记
             ensure_change_telphone();//确认更改手机号
         }
 
-        if(common_timer->isActive())//比对通过关闭定时器
+        if(get_code_timer->isActive())//比对通过关闭定时器
         {
 
-            qDebug()<<"-------------delete common_timer";
-            common_timer->stop();
-            disconnect(common_timer,SIGNAL(timeout()),this,SLOT(get_code_timeout()));
-            delete common_timer;
-            common_timer = NULL;
+            qDebug()<<"-------------delete get_code_timer";
+            get_code_timer->stop();
+            disconnect(get_code_timer,SIGNAL(timeout()),this,SLOT(get_code_timeout()));
+            delete get_code_timer;
+            get_code_timer = NULL;
         }
     }
     else
@@ -1481,14 +1506,14 @@ void home_hotel::on_exit_clicked()  //退出按钮
                                         "font: 75 16pt \"Microsoft YaHei UI Light\";"
                                         "border-image: url(:/new/prefix1/pictures/输入文本框.png);}");
     }
-    if(common_timer != NULL  &&  common_timer->isActive())
+    if(get_code_timer != NULL  &&  get_code_timer->isActive())
     {
 
-        qDebug()<<"-------------delete common_timer";
-        common_timer->stop();
-        disconnect(common_timer,SIGNAL(timeout()),this,SLOT(get_code_timeout()));
-        delete common_timer;
-        common_timer = NULL;
+        qDebug()<<"-------------delete get_code_timer";
+        get_code_timer->stop();
+        disconnect(get_code_timer,SIGNAL(timeout()),this,SLOT(get_code_timeout()));
+        delete get_code_timer;
+        get_code_timer = NULL;
     }
     ui->stackedWidget->setCurrentIndex(FIRST_PAGE);
 //-----------------用于预览界面-----------------
@@ -1700,9 +1725,34 @@ void home_hotel::on_num_9_clicked()     //按键9
 void home_hotel::on_stackedWidget_currentChanged(int arg1)
 {
     if(arg1 == FIRST_PAGE)  //首页面不显示退出按钮
+    {
         ui->exit->hide();
-    else
+        if(page_shelving_timer != NULL && page_shelving_timer->isActive()) //如果正在定时中
+        {
+            page_shelving_timer->stop();
+            disconnect(page_shelving_timer,SIGNAL(timeout()),this,SLOT(page_shelving_timeout()));
+            delete page_shelving_timer;
+            page_shelving_timer = NULL;
+            qDebug()<<"关闭页面搁置定时..";
+        }
+    }else
+    {
         ui->exit->show();
+        if(page_shelving_timer != NULL && page_shelving_timer->isActive()) //如果正在定时中
+        {
+            page_shelving_timer->stop();
+            page_shelving_timer->start(shelving_time);  //重新开始定时
+            qDebug()<<"关闭页面搁置定时..";
+            qDebug()<<"开启页面搁置定时..";
+        }
+        else
+        {
+            page_shelving_timer = new QTimer(this);
+            connect(page_shelving_timer,SIGNAL(timeout()),this,SLOT(page_shelving_timeout()));
+            qDebug()<<"开启页面搁置定时..";
+            page_shelving_timer->start(shelving_time);  //重新开始定时
+        }
+    }
 
     if(opt_code == GET_KEY || opt_code == CHECK_OUT) //取钥匙和退房不显示增加人员按钮
     {
