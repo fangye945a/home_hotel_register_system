@@ -1319,6 +1319,10 @@ void home_hotel::ensure_check_in_reply(QNetworkReply* reply) //确认登记入�
         {
             QJsonValue success_msg = object.value("result");
             msg = success_msg.toString();
+
+            QJsonValue house_ordernumber = object.value("house_ordernumber");
+            ordernumber = house_ordernumber.toString();
+
             ui->success_help->setText(msg);
             ui->stackedWidget->setCurrentIndex(CHECK_IN_SUCCESS);
         }
