@@ -91,7 +91,7 @@ void home_hotel::signal_slots_connect()
     connect(time_timer,SIGNAL(timeout()),this,SLOT(update_time()));
 
     weather_timer = new QTimer(this);      //天气更新计时
-    connect(weather_timer,SIGNAL(timeout()),this,SLOT(update_weather()));
+    connect(weather_timer,SIGNAL(timeout()),this,SLOT(weather_inquiry()));
 
     frame_timer = new QTimer(this);      //天气更新计时
     connect(frame_timer,SIGNAL(timeout()),this,SLOT(get_frame()));
@@ -241,6 +241,7 @@ void home_hotel::update_weather(QNetworkReply* reply) //更新显示天气
     static QString weather_type;   //天气状况
 
     QString all = reply->readAll();
+    qDebug()<<"Recieve:"<<all;
     QJsonParseError err;
     QJsonDocument json_recv = QJsonDocument::fromJson(all.toUtf8(),&err);
     qDebug() << err.error;
