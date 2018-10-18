@@ -137,7 +137,7 @@ void home_hotel::home_hotel_init()
     }
     q_image_data = new QImage;
     time_timer->start(60*1000); //每分钟更新一次时间
-    weather_timer->start(60*60*1000); //每小时更新一次天气
+    weather_timer->start(30*60*1000); //每小时更新一次天气
 
     read_ini_file();    //读取配置文件
     weather_inquiry();  //获取天气
@@ -224,9 +224,13 @@ void home_hotel::open_camera() //打开摄像头
     if(!camera->isOpened())  //没打开摄像头则打开
     {
         camera->open(0);
+        QString log_msg = "打开摄像头";
+        add_to_log(log_msg);
     }else
     {
         ui->help_msg_page3->setText("摄像头打开失败!!");
+        QString log_msg = "打开摄像头失败";
+        add_to_log(log_msg);
     }
     frame_timer->start(camera_T); //开始读取视频
     face_detect_flag = 1;       //开启人脸识别
@@ -234,6 +238,8 @@ void home_hotel::open_camera() //打开摄像头
 
 void home_hotel::close_camera() //关闭摄像头
 {
+    QString log = "关闭摄像头";
+    add_to_log(log);
     frame_timer->stop();
     camera->release();
 }
@@ -252,10 +258,15 @@ void home_hotel::weather_inquiry()  //获取天气
     char quest_array[256]="http://wthrcdn.etouch.cn/weather_mini?city=";
     QNetworkRequest quest;
     sprintf(quest_array,"%s%s",quest_array,local_city.toUtf8().data());
-    qDebug("请求天气数据--> URL:%s\n",quest_array);
+
+    QString log_msg = "请求天气数据--> URL:";
+    log_msg += quest_array;
+    add_to_log(log_msg);
+
     quest.setUrl(QUrl(quest_array));
     quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
     weather_manager->get(quest);
+
 }
 
 void home_hotel::update_weather(QNetworkReply* reply) //更新显示天气
@@ -265,9 +276,14 @@ void home_hotel::update_weather(QNetworkReply* reply) //更新显示天气
     static QString weather_type;   //天气状况
 
     QString all = reply->readAll();
+
+    QString log_msg = "更新天气请求响应 --> Recieve:";
+    log_msg += all;
+    add_to_log(log_msg);
+
     QJsonParseError err;
     QJsonDocument json_recv = QJsonDocument::fromJson(all.toUtf8(),&err);
-    qDebug() << err.error;
+
     if(!json_recv.isNull())
     {
         QJsonObject object = json_recv.object();
@@ -297,9 +313,12 @@ void home_hotel::update_weather(QNetworkReply* reply) //更新显示天气
             }
         }
 
-    }else
+    }
+    else
     {
-        qDebug()<<"更新天气:更新天气失败，json解析出错!!";
+        log_msg = "更新天气失败,json解析出错!!";
+        add_to_log(log_msg);
+
         weather_type = "暂无数据";
         Temperature = "--";
         wind_state = "--";
@@ -345,22 +364,36 @@ bool home_hotel::isFileExist(QString fullFileName) //判断文件是否存在
 
 void home_hotel::detect_card_finish() //身份证检测完成
 {
-#if 0
+    QString log_msg = "身份证检测完成:\n";
+    log_msg += "\t\t\t姓名:";
     QString tmp = QString::fromLocal8Bit(card_info.name);
-    qDebug()<<"姓名:"<<tmp;
+    log_msg += tmp;
+    log_msg += "\n";
+    log_msg += "\t\t\t性别:";
     tmp = QString::fromLocal8Bit(card_info.sex);
-    qDebug()<<"性别:"<<tmp;
+    log_msg += tmp;
+    log_msg += "\n";
+    log_msg += "\t\t\t民族:";
     tmp = QString::fromLocal8Bit(card_info.nation);
-    qDebug()<<"民族:"<<tmp;
+    log_msg += tmp;
+    log_msg += "\n";
+    log_msg += "\t\t\t出生日期:";
     tmp = QString::fromLocal8Bit(card_info.birth);
-    qDebug()<<"出生日期:"<<tmp;
+    log_msg += tmp;
+    log_msg += "\n";
+    log_msg += "\t\t\t住址:";
     tmp = QString::fromLocal8Bit(card_info.address);
-    qDebug()<<"住址:"<<tmp;
+    log_msg += tmp;
+    log_msg += "\n";
+    log_msg += "\t\t\t身份证号码:";
     tmp = QString::fromLocal8Bit(card_info.card_id);
-    qDebug()<<"身份证号码："<<tmp;
+    log_msg += tmp;
+    log_msg += "\n";
+    log_msg += "\t\t\t签发机关：";
     tmp = QString::fromLocal8Bit(card_info.registry);
-    qDebug()<<"签发机关："<<tmp;
-#endif
+    log_msg += tmp;
+    add_to_log(log_msg);
+
     face_compare_show();
 }
 
@@ -428,6 +461,11 @@ void home_hotel::request_token()
     array += "&client_secret=";
     array += secret_key.toLocal8Bit();
     face_compare_manager->post(ask_tooken,array);
+
+    QString log = "请求获取token值--> URL:";
+    log += ask_tooken.url().toString();
+    log += array;
+    add_to_log(log);
 }
 
 void home_hotel::compare_face()
@@ -440,7 +478,11 @@ void home_hotel::compare_face()
 
     char quest_url[256]={0};
     sprintf(quest_url,"https://aip.baidubce.com/rest/2.0/face/v3/match?access_token=%s",token.toLocal8Bit().data());
-    qDebug()<<"人脸信息上传--> URL:"<<quest_url;
+
+    QString log = "认证比对请求--> URL:";
+    log += quest_url;
+    add_to_log(log);
+
     QUrl qurl(quest_url);
     QNetworkRequest request(qurl);
     request.setHeader(QNetworkRequest::ContentTypeHeader,QVariant("application/json"));
@@ -524,20 +566,25 @@ void home_hotel::upload_info() //上传身份证信息
     quest_array.append(QString::fromLocal8Bit(card_info.registry).toUtf8());
     quest_array.append("\"}");
 
-    qDebug()<<"入住上传身份证信息---> URL:"<<qurl;
-    qDebug()<<"body:"<<QString::fromLocal8Bit(quest_array);
     common_manager->post(request,quest_array);
+
+    QString log = "入住上传身份证信息---> URL:";
+    log += qurl.toString();
+    add_to_log(log);
 }
 
 void home_hotel::upload_info_result(QNetworkReply* reply) //上传身份证信息回复
 {
     //QTextCodec *codec = QTextCodec::codecForName("utf8");
     QString Receive_http = reply->readAll();//codec->toUnicode(reply->readAll());
-    qDebug()<<"上传身份信息回复-->"<<Receive_http;
+
+    QString log = "上传身份信息回复--> Recieve:";
+    log += Receive_http;
+    add_to_log(log);
 
     QJsonParseError err;
     QJsonDocument json_recv = QJsonDocument::fromJson(Receive_http.toUtf8(),&err);
-    qDebug() << "JSon Error_code ="<<err.error;
+
     if(!json_recv.isNull() && json_recv.isObject())
     {
         QJsonObject object = json_recv.object();
@@ -602,6 +649,10 @@ void home_hotel::upload_info_add_people()
     char add_people_url[256]="http://hotel.inteink.com/hotel/login/addTenantInfo";
     sprintf(add_people_url,"%s?house_ordernumber=%s",add_people_url,ordernumber.toLocal8Bit().data());
 
+    QString log = "上传身份信息(增加人员)--> URL:";
+    log += add_people_url;
+    add_to_log(log);
+
     QUrl qurl(add_people_url);
     QNetworkRequest request(qurl);
     request.setHeader(QNetworkRequest::ContentTypeHeader,QVariant("application/json"));
@@ -640,6 +691,10 @@ void home_hotel::upload_info_add_people_result(QNetworkReply *reply)
 {
     QString Receive_http = reply->readAll();
     qDebug()<<"增加人员上传身份证信息回复-->"<<Receive_http;
+
+    QString log = "增加人员上传身份证信息回复 --> Receive:";
+    log += Receive_http;
+    add_to_log(log);
 
     QJsonParseError err;
     QJsonDocument json_recv = QJsonDocument::fromJson(Receive_http.toUtf8(),&err);
@@ -693,11 +748,13 @@ void home_hotel::upload_info_add_people_result(QNetworkReply *reply)
 void home_hotel::face_compare_result(QNetworkReply* reply)
 {
     static int times_cnt = 0;
-    qDebug()<<"获得人脸比对结果!!";
     QTextCodec *codec = QTextCodec::codecForName("utf8");
     QString Receive_http = codec->toUnicode(reply->readAll());
 
-    qDebug()<<"Receive_http:"<<Receive_http;
+    QString log = "人脸比对相关请求响应--> Receive:";
+    log += Receive_http;
+    add_to_log(log);
+
     QJsonDocument json_recv = QJsonDocument::fromJson(Receive_http.toLocal8Bit());
 
     int err_code = 0;
@@ -864,6 +921,10 @@ void home_hotel::on_get_code_clicked() //获取验证码
         sprintf(quest_array,"http://hotel.inteink.com/hotel/tenant/updateTelephone?inputTelephone=%s",ui->phone_number->text().toUtf8().data());
 
     qDebug("请求验证码--> URL:%s\n",quest_array);
+    QString log = "请求验证码 --> URL:";
+    log += quest_array;
+    add_to_log(log);
+
     quest.setUrl(QUrl(quest_array));
     quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
     common_manager->get(quest);
@@ -883,6 +944,11 @@ void home_hotel::get_code_reply(QNetworkReply* reply)   //获取验证码响应
 {
     QString all = reply->readAll();
     qDebug()<<"请求验证码响应-->"<<all;
+
+    QString log = "请求验证码响应 --> Recieve:";
+    log += all;
+    add_to_log(log);
+
     QJsonParseError err;
     QJsonDocument json_recv = QJsonDocument::fromJson(all.toUtf8(),&err);
     qDebug() << "error_code ="<<err.error;
@@ -949,6 +1015,11 @@ void home_hotel::get_room_info_get_key_reply(QNetworkReply *reply) //获取房�
 {
     QString all = reply->readAll();
     qDebug()<<"获取房间信息响应(取钥匙)-->"<<all;
+
+    QString log = "获取房间信息响应(取钥匙) --> Recieve:";
+    log += all;
+    add_to_log(log);
+
     QJsonParseError err;
     QJsonDocument json_recv = QJsonDocument::fromJson(all.toUtf8(),&err);
     qDebug() << "error_code ="<<err.error;
@@ -1022,6 +1093,11 @@ void home_hotel::get_room_info_check_out_reply(QNetworkReply *reply)
 {
     QString all = reply->readAll();
     qDebug()<<"获取房间信息响应(退房)-->"<<all;
+
+    QString log = "获取房间信息响应(退房) --> Recieve:";
+    log += all;
+    add_to_log(log);
+
     QJsonParseError err;
     QJsonDocument json_recv = QJsonDocument::fromJson(all.toUtf8(),&err);
     qDebug() << "error_code ="<<err.error;
@@ -1096,6 +1172,11 @@ void home_hotel::get_key_reply(QNetworkReply *reply)
 {
     QString all = reply->readAll();
     qDebug()<<"获取钥匙响应-->"<<all;
+
+    QString log = "获取钥匙响应 --> Recieve:";
+    log += all;
+    add_to_log(log);
+
     QJsonParseError err;
     QJsonDocument json_recv = QJsonDocument::fromJson(all.toUtf8(),&err);
     qDebug() << "error_code ="<<err.error;
@@ -1151,6 +1232,11 @@ void home_hotel::check_out_reply(QNetworkReply *reply)
 {
     QString all = reply->readAll();
     qDebug()<<"退房请求响应-->"<<all;
+
+    QString log = "退房请求响应 --> Recieve:";
+    log += all;
+    add_to_log(log);
+
     QJsonParseError err;
     QJsonDocument json_recv = QJsonDocument::fromJson(all.toUtf8(),&err);
     qDebug() << "error_code ="<<err.error;
@@ -1215,11 +1301,54 @@ void home_hotel::ensure_change_telphone() //确认更换手机
     quest.setUrl(QUrl(quest_array));
     quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
     common_manager->get(quest);
+
+    QString log = "确认更改手机号码 --> URL:";
+    log += quest_array;
+    add_to_log(log);
+}
+bool home_hotel::isDirExist(QString fullPath)
+{
+    QDir dir(fullPath);
+    if(dir.exists())
+    {
+      return true;
+    }
+    return false;
+}
+
+void home_hotel::add_to_log(QString log)
+{
+    QString fullpath = LOG_DIR_PATH;
+    if(isDirExist(fullpath))  //文件夹存在才保存日志
+    {
+        QString year_month_day = QDateTime::currentDateTime().toString("yyyy-MM-dd"); //年月日
+        fullpath += "/";
+        fullpath += year_month_day;
+        fullpath += ".log";
+
+        QString hour_minutes_s_ms = QDateTime::currentDateTime().toString("HH:mm:ss zzz");   //时 分
+
+        QString time_str = year_month_day + " " + hour_minutes_s_ms;
+        QFile file(fullpath);
+        if(!file.open(QIODevice::WriteOnly  | QIODevice::Text|QIODevice::Append))
+        {
+            qDebug()<<"打开日志文件失败!!";
+            return;
+        }
+        QTextStream in(&file);
+        time_str += "-->";
+        time_str += log;
+        time_str += "\n";
+        in << time_str;
+        file.close();
+    }
 }
 
 void home_hotel::page_shelving_timeout()
 {
-     on_exit_clicked();
+    QString log = "页面搁置超时";
+    add_to_log(log);
+    on_exit_clicked();
 }
 
 void home_hotel::ensure_check_in() //确认登记入住
@@ -1236,6 +1365,10 @@ void home_hotel::ensure_check_in() //确认登记入住
     quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
     common_manager->get(quest);
     ui->phone_sign_help_msg->setText("登记中，请稍后..");
+
+    QString log = "确认入住请求---> URL:";
+    log += quest_array;
+    add_to_log(log);
 }
 
 void home_hotel::get_room_info_get_key()  //获取住房信息(取钥匙)
@@ -1251,7 +1384,10 @@ void home_hotel::get_room_info_get_key()  //获取住房信息(取钥匙)
     quest_array.append(QString::fromLocal8Bit(card_info.card_id).toUtf8());
     quest_array.append("\"}");
 
-    qDebug()<<"获取房间信息请求(取钥匙)---> URL:"<<qurl;
+    QString log_msg = "获取房间信息请求(取钥匙)---> URL:";
+    log_msg += qurl.toString();
+    add_to_log(log_msg);
+
     common_manager->post(request,quest_array);
 }
 
@@ -1270,6 +1406,10 @@ void home_hotel::get_room_info_check_out()
 
     qDebug()<<"获取房间信息请求(退房)---> URL:"<<qurl;
     common_manager->post(request,quest_array);
+
+    QString log = "获取房间信息请求(退房)---> URL:";
+    log += qurl.toString();
+    add_to_log(log);
 }
 
 void home_hotel::get_key_request() //获取钥匙
@@ -1286,6 +1426,10 @@ void home_hotel::get_key_request() //获取钥匙
     quest.setUrl(QUrl(quest_array));
     quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
     common_manager->get(quest);
+
+    QString log = "获取钥匙请求--> URL:";
+    log += quest_array;
+    add_to_log(log);
 }
 
 void home_hotel::check_out_request()  //请求退房
@@ -1302,6 +1446,10 @@ void home_hotel::check_out_request()  //请求退房
     quest.setUrl(QUrl(quest_array));
     quest.setHeader(QNetworkRequest::UserAgentHeader,"RT-Thread ART");
     common_manager->get(quest);
+
+    QString log = "请求退房--> URL:";
+    log += quest_array;
+    add_to_log(log);
 }
 
 void home_hotel::ensure_check_in_reply(QNetworkReply* reply) //确认登记入住
@@ -1457,6 +1605,7 @@ void home_hotel::on_add_people_clicked() //增加人员
     opt_code = ADD_PEOPLE;
     ui->stackedWidget->setCurrentIndex(CARD_DETECT);
     pthread_card->start();
+    add_to_log(QString("-------------开始检测身份证--------------"));
 }
 
 void home_hotel::on_check_in_clicked() //入住
@@ -1464,7 +1613,7 @@ void home_hotel::on_check_in_clicked() //入住
     opt_code = CHECK_IN;
     ui->stackedWidget->setCurrentIndex(CARD_DETECT);
     pthread_card->start();
-
+    add_to_log(QString("-------------开始检测身份证--------------"));
 }
 
 void home_hotel::on_get_the_key_clicked() //取钥匙
@@ -1472,6 +1621,7 @@ void home_hotel::on_get_the_key_clicked() //取钥匙
     opt_code = GET_KEY;
     ui->stackedWidget->setCurrentIndex(CARD_DETECT);
     pthread_card->start();
+    add_to_log(QString("-------------开始检测身份证--------------"));
     ui->room_info_help_msg->setText("*一个手机号一天最多获取三次秘钥");
 }
 
@@ -1480,11 +1630,14 @@ void home_hotel::on_check_out_clicked() //退房
     opt_code = CHECK_OUT;
     ui->stackedWidget->setCurrentIndex(CARD_DETECT);
     pthread_card->start();
+    add_to_log(QString("-------------开始检测身份证--------------"));
     ui->room_info_help_msg->setText("*退房后将无法打开房门，提前退房请主动联系房东结算费用");
 }
 
 void home_hotel::on_exit_clicked()  //退出按钮
 {
+    QString log = "退回首界面";
+    add_to_log(log);
     if(pthread_card->isRunning())
     {
         pthread_card->stop();

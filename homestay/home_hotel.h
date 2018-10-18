@@ -21,6 +21,7 @@
 #include <QFileInfo>
 #include <QFile>
 #include <QImage>
+#include <QDir>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -32,6 +33,7 @@
 #define  API_Key       "6SUZQHmrbhK3f6Rfk799AN5C"
 #define  Secret_Key    "LAc7GQf5eqstueUHbqND9tPgOaminD0e"
 #define  FILE_PATH      "./cfg.ini"
+#define LOG_DIR_PATH    "./log"
 enum {
       FIRST_PAGE=0, //首页面
       CARD_DETECT,  //身份证检测
@@ -69,7 +71,6 @@ public:
     void open_camera();       //打开摄像头
     void close_camera();      //关闭摄像头
     QImage Mat2QImage(cv::Mat &cvImg); //Mat转QImage
-    bool isFileExist(QString fullFileName); //判断文件是否存在
     QImage ScaleImage2Label(QImage qImage, QLabel *qLabel);     //使图片能适应Lable部件
     bool detectface(cv::Mat &image);     //检测人脸
     void request_token();           //获取token值
@@ -82,6 +83,9 @@ public:
     void get_key_request();                   //请求获取钥匙
     void check_out_request();                  //请求退房
     void ensure_change_telphone();              // 确认更换手机
+    void add_to_log(QString log);               //添加到日志
+    bool isDirExist(QString fullPath);          //判断文件夹是否存在
+    bool isFileExist(QString fullFileName); //判断文件是否存在
 public slots:
 
     void page_shelving_timeout();  //页面搁置超时
