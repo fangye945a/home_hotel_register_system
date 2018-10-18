@@ -22,11 +22,11 @@
 #include <QSettings>
 #include <QImage>
 #include <QDateTime>
+#include <QDir>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/objdetect/objdetect.hpp>
-//#include <opencv2/gpu/gpu.hpp>
 
 #include "detect_card_pthread.h"
 #include "video_update.h"
@@ -37,6 +37,8 @@
 #define  API_Key       "2Z51fFjIkF1AM0ZTFwiZG0LI"
 #define  Secret_Key    "rxW2gMF4TnIAAoyqedO8jnTL4h08jZbE"
 #define  FILE_PATH      "./cfg.ini"
+#define LOG_DIR_PATH    "./log"
+
 enum {
       FIRST_PAGE=0, //首页面
       CARD_DETECT,  //身份证检测
@@ -64,13 +66,14 @@ public:
     void open_camera();       //打开摄像头
     void close_camera();      //关闭摄像头
     QImage Mat2QImage(cv::Mat &cvImg); //Mat转QImage
-    bool isFileExist(QString fullFileName); //判断文件是否存在
     QImage ScaleImage2Label(QImage qImage, QLabel *qLabel);     //使图片能适应Lable部件
     bool detectface(cv::Mat &image);     //检测人脸
     void request_token();           //获取token值
     void compare_face();            //人脸比对请求
     void upload_info(char *authentication_flag);             //上传身份证信息
-    void print_log(QString &log, int flag=0);//打印日志
+    void add_to_log(QString log);               //添加到日志
+    bool isDirExist(QString fullPath);          //判断文件夹是否存在
+    bool isFileExist(QString fullFileName);     //判断文件是否存在
 public slots:
     void page_shelving_timeout();  //页面搁置超时
 
